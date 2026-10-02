@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주보 OCR & 15가지 정보 파서 (Naver CLOVA OCR API)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Pretendard, Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 30px 15px; 
+            background-color: #f9f9f9; 
+            color: #333; 
+            max-width: 850px; 
+            margin: 0 auto; 
+            line-height: 1.6;
+        }
+        h1 { text-align: center; color: #2c3e50; font-size: 1.8rem; margin-bottom: 8px; }
+        .sub-header { text-align: center; color: #7f8c8d; font-size: 0.95rem; margin-bottom: 25px; }
+
+        .upload-section { 
+            background: white; 
+            padding: 25px; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            text-align: center; 
+            margin-bottom: 20px; 
+        }
+        #imageInput { margin: 15px 0; }
+        #preview { 
+            max-width: 100%; 
+            max-height: 300px; 
+            margin-top: 15px; 
+            display: none; 
+            border-radius: 4px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .status-box { 
+            font-weight: bold; 
+            color: #3498db; 
+            margin: 15px 0; 
+            min-height: 24px; 
+        }
+        
+        .result-section, .parsed-section { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            margin-bottom: 20px;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+        .result-header h3 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.15rem;
+        }
+        textarea { 
+            width: 100%; 
+            height: 180px; 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            resize: vertical; 
+            box-sizing: border-box; 
+            font-family: inherit; 
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        button { 
+            background-color: #03c75a; /* Naver Green Color */
+            color: white; 
+            border: none; 
+            padding: 12px 20px; 
+            font-size: 16px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: background 0.2s; 
+            width: 100%; 
+            font-weight: bold; 
+        }
+        button:hover { background-color: #02b350; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+        .btn-copy {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: auto;
+        }
+        .btn-copy:hover { background-color: #2980b9; }
+
+        /* 주일 구분 판별 배너 스타일 */
+        .sunday-type-banner {
+            background: #eef6ff;
+            border: 2px solid #3498db;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        .sunday-type-banner.together-sunday {
+            background: #fff8e7;
+            border-color: #f39c12;
+        }
+        .sunday-type-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sunday-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: white;
+            background: #3498db;
+        }
+        .sunday-type-banner.together-sunday .sunday-badge {
+            background: #e67e22;
+        }
+        .sunday-type-desc {
+            font-size: 0.85rem;
+            color: #7f8c8d;
+        }
+
+        .rule-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .rule-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .rule-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #495057;
+        }
+        .rule-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1864ab;
+            background: #e7f5ff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #a5d8ff;
+            word-break: break-all;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #2ecc71;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            font-weight: bold;
+            display: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📝 주보 OCR & 15가지 정보 파서</h1>
+    <p class="sub-header">Naver CLOVA OCR API (Cloudflare Pages Function Proxy) 기반 초고성능 파싱 시스템</p>
+    
+    <div class="upload-section">
+        <p><strong>텍스트를 추출할 주보 이미지 파일(PNG, JPG, WEBP)을 선택해 주세요.</strong></p>
+        <input type="file" id="imageInput" accept="image/*">
+        <div>
+            <img id="preview" alt="업로드 이미지 미리보기">
+        </div>
+        <div id="status" class="status-box">이미지를 선택하면 준비됩니다.</div>
+        <button id="extractBtn" disabled><i class="fa-solid fa-cloud-arrow-up"></i> CLOVA OCR 텍스트 추출 & 주보 분석</button>
+    </div>
+
+    <!-- 1. OCR 원본 텍스트 추출 결과 -->
+    <div class="result-section">
+        <div class="result-header">
+            <h3><i class="fa-solid fa-file-lines"></i> [1. CLOVA OCR 원본 추출 결과]</h3>
+            <button id="copyBtn" class="btn-copy" style="display: none;"><i class="fa-solid fa-copy"></i> 원본 텍스트 복사</button>
+        </div>
+        <textarea id="resultText" placeholder="추출된 원본 텍스트가 여기에 표시됩니다. 바로 수정 후 15가지 정보를 다시 추출할 수 있습니다." readonly></textarea>
+    </div>
+
+    <!-- 2. 15가지 지정 추출 정보 및 주일 구분 -->
+    <div class="parsed-section" id="parsedSection" style="display: none;">
+        
+        <!-- 주일 구분 판단 배너 -->
+        <div class="sunday-type-banner" id="sundayTypeBanner">
+            <div class="sunday-type-title">
+                <i class="fa-solid fa-church"></i> 주일 구분: 
+                <span class="sunday-badge" id="sundayBadge">일반 주일</span>
+            </div>
+            <div class="sunday-type-desc" id="sundayDesc">제목 위치 텍스트 판별 중...</div>
+        </div>
+
+        <div class="result-header">
+            <h3><i class="fa-solid fa-list-check"></i> [2. 15가지 지정 추출 정보]</h3>
+            <button id="copy15Btn" class="btn-copy"><i class="fa-solid fa-copy"></i> 15가지 결과 전체 복사</button>
+        </div>
+        <div class="rule-list" id="ruleList">
+        </div>
+    </div>
+
+    <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const preview = document.getElementById('preview');
+        const status = document.getElementById('status');
+        const extractBtn = document.getElementById('extractBtn');
+        const resultText = document.getElementById('resultText');
+        const copyBtn = document.getElementById('copyBtn');
+        const parsedSection = document.getElementById('parsedSection');
+        const ruleList = document.getElementById('ruleList');
+        const copy15Btn = document.getElementById('copy15Btn');
+        const toast = document.getElementById('toast');
+
+        const sundayTypeBanner = document.getElementById('sundayTypeBanner');
+        const sundayBadge = document.getElementById('sundayBadge');
+        const sundayDesc = document.getElementById('sundayDesc');
+
+        let selectedFile = null;
+        let selectedBase64 = null;
+        let last15Results = [];
+        let currentSundayType = "일반 주일";
+
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                selectedBase64 = evt.target.result;
+                preview.src = selectedBase64;
+                preview.style.display = 'inline-block';
+            };
+            reader.readAsDataURL(file);
+            
+            status.innerText = "추출 준비 완료! 아래 버튼을 눌러주세요.";
+            extractBtn.disabled = false;
+            resultText.value = "";
+            copyBtn.style.display = 'none';
+            parsedSection.style.display = 'none';
+        });
+
+        // Naver CLOVA OCR Cloudflare Function Proxy 호출
+        extractBtn.addEventListener('click', async function() {
+            if (!selectedBase64) return;
+
+            extractBtn.disabled = true;
+            status.innerText = "Naver CLOVA OCR 서버로 분석 전송 중...";
+            resultText.value = "Naver CLOVA OCR AI 모델이 이미지를 분석 중입니다. 잠시만 기다려주세요...";
+            copyBtn.style.display = 'none';
+            parsedSection.style.display = 'none';
+
+            try {
+                // 확장자 format 추출
+                const ext = selectedFile ? selectedFile.name.split('.').pop().toLowerCase() : 'png';
+                const fileFormat = ['jpg', 'jpeg', 'png', 'pdf', 'tiff'].includes(ext) ? (ext === 'jpeg' ? 'jpg' : ext) : 'png';
+
+                // Cloudflare Pages Function Proxy (/api/ocr) 호출
+                const response = await fetch('/api/ocr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        imageBase64: selectedBase64,
+                        format: fileFormat
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'OCR 분석 실패');
+                }
+
+                resultText.value = data.text;
+                resultText.removeAttribute('readonly');
+                status.innerText = "Naver CLOVA OCR 분석 완료!";
+                extractBtn.disabled = false;
+                copyBtn.style.display = 'inline-block';
+
+                // 15가지 정밀 파싱 실행
+                process15Rules(data.text);
+
+            } catch (error) {
+                console.error(error);
+                status.innerText = `오류: ${error.message}`;
+                resultText.value = `[분석 오류] ${error.message}\n.env.example 및 Cloudflare Pages 환경변수(CLOVA_OCR_INVOKE_URL, CLOVA_OCR_SECRET_KEY) 설정을 확인해주세요.`;
+                extractBtn.disabled = false;
+            }
+        });
+
+        resultText.addEventListener('input', function() {
+            if (resultText.value) {
+                process15Rules(resultText.value);
+            }
+        });
+
+        copyBtn.addEventListener('click', function() {
+            if (!resultText.value) return;
+            navigator.clipboard.writeText(resultText.value).then(() => showToast("원본 텍스트가 복사되었습니다!"));
+        });
+
+        copy15Btn.addEventListener('click', function() {
+            if (!last15Results.length) return;
+            const headerText = `[주일 구분: ${currentSundayType}]\n\n`;
+            const textToCopy = headerText + last15Results.map(r => `${r.id}. ${r.label}: ${r.value || '(인식 실패/없음)'}`).join('\n');
+            navigator.clipboard.writeText(textToCopy).then(() => showToast("주일 구분 및 15가지 추출 결과가 복사되었습니다!"));
+        });
+
+        function showToast(msg) {
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        }
+
+        // ===================================================
+        // 주일 종류 판별 & 15가지 명확한 추출 규칙 파서
+        // ===================================================
+        function process15Rules(rawText) {
+            const lines = rawText.split('\n');
+
+            const compactRaw = rawText.replace(/\s+/g, '');
+            
+            if (compactRaw.includes("다함께주일") || compactRaw.includes("다함께  주일")) {
+                currentSundayType = "다함께 주일";
+                sundayBadge.innerText = "다함께 주일";
+                sundayTypeBanner.className = "sunday-type-banner together-sunday";
+                sundayDesc.innerText = "💡 '다함께 주일' 텍스트 감지 (1부 예배 없이 2부 예배만 진행)";
+            } else if (compactRaw.includes("영광을하나님께")) {
+                currentSundayType = "일반 주일";
+                sundayBadge.innerText = "일반 주일";
+                sundayTypeBanner.className = "sunday-type-banner";
+                sundayDesc.innerText = "💡 '영광을 하나님께' 텍스트 감지 (1부, 2부 예배 진행)";
+            } else {
+                if (compactRaw.includes("다함께")) {
+                    currentSundayType = "다함께 주일";
+                    sundayBadge.innerText = "다함께 주일";
+                    sundayTypeBanner.className = "sunday-type-banner together-sunday";
+                    sundayDesc.innerText = "💡 '다함께 주일' 관련 문구 감지";
+                } else {
+                    currentSundayType = "일반 주일";
+                    sundayBadge.innerText = "일반 주일";
+                    sundayTypeBanner.className = "sunday-type-banner";
+                    sundayDesc.innerText = "💡 일반 주일로 판별되었습니다.";
+                }
+            }
+
+            function getUntilDoubleSpace(str) {
+                if (!str) return '';
+                const idx = str.search(/\s{2,}/);
+                return idx !== -1 ? str.substring(0, idx).trim() : str.trim();
+            }
+
+            function getUntilSlash(str) {
+                if (!str) return '';
+                const idx = str.indexOf('/');
+                return idx !== -1 ? str.substring(0, idx).trim() : str.trim();
+            }
+
+            // --- 규칙 1: "인도, 설교: " 이후 행바꾸기 전까지 ---
+            let r1 = '';
+            let lineGloryIdx = lines.findIndex(l => l.includes('영광을 하나님께') || l.includes('영광을하나님께'));
+            if (lineGloryIdx !== -1 && lineGloryIdx + 1 < lines.length) {
+                const nextLine = lines[lineGloryIdx + 1];
+                if (nextLine.includes('설교:')) {
+                    r1 = nextLine.split('설교:')[1].trim();
+                } else if (nextLine.includes('설교')) {
+                    r1 = nextLine.split('설교')[1].replace(/^[\s*:]*/, '').trim();
+                }
+            }
+            if (!r1) {
+                const lineR1 = lines.find(l => l.includes('설교:'));
+                if (lineR1) {
+                    r1 = lineR1.split('설교:')[1].trim();
+                } else {
+                    const m = rawText.match(/인도\s*[\/,]?\s*설교\s*:\s*([^\n]+)/);
+                    if (m) r1 = m[1].trim();
+                }
+            }
+
+            // --- 규칙 2: "찬송(2부) * " 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
+            let r2 = '';
+            const lineR2 = lines.find(l => l.includes('찬송(2부) *') || l.includes('찬송(2부)*'));
+            if (lineR2) {
+                const target = lineR2.replace(/.*찬송\(2부\)\s*\*?\s*/, '');
+                r2 = getUntilDoubleSpace(target);
+            }
+
+            // --- 규칙 3: "성시교독(2부)" 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
+            let r3 = '';
+            let r3LineIndex = -1;
+            lines.forEach((l, idx) => {
+                if (l.includes('성시교독(2부)') && r3LineIndex === -1) {
+                    r3LineIndex = idx;
+                    const target = l.replace(/.*성시교독\(2부\)\s*/, '');
+                    r3 = getUntilDoubleSpace(target);
+                }
+            });
+
+            // --- 규칙 4: 3번 다음 행에 있는 "찬송(2부)" 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
+            let r4 = '';
+            let r4LineIndex = -1;
+            if (r3LineIndex !== -1 && r3LineIndex + 1 < lines.length) {
+                const lineR4 = lines[r3LineIndex + 1];
+                if (lineR4.includes('찬송(2부)')) {
+                    r4LineIndex = r3LineIndex + 1;
+                    const target = lineR4.replace(/.*찬송\(2부\)\s*/, '');
+                    r4 = getUntilDoubleSpace(target);
+                }
+            }
+            if (!r4) {
+                lines.forEach((l, idx) => {
+                    if (idx > r3LineIndex && l.includes('찬송(2부)') && r4LineIndex === -1) {
+                        r4LineIndex = idx;
+                        r4 = getUntilDoubleSpace(l.replace(/.*찬송\(2부\)\s*/, ''));
+                    }
+                });
+            }
+
+            // --- 규칙 5: 4번 다음 행에 있는 "봉헌... 1부: " 이후 첫 텍스트 ~ "/" 이전까지 ---
+            // --- 규칙 6: 5번과 같은 행에 있는 "2부: " 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
+            let r5 = '', r6 = '';
+            let lineR5 = null;
+            if (r4LineIndex !== -1 && r4LineIndex + 1 < lines.length) {
+                lineR5 = lines[r4LineIndex + 1];
+            }
+            if (!lineR5 || !lineR5.includes('봉헌')) {
+                lineR5 = lines.find((l, idx) => idx > r4LineIndex && l.includes('봉헌'));
+            }
+
+            if (lineR5) {
+                if (lineR5.includes('1부:')) {
+                    const after1part = lineR5.split('1부:')[1];
+                    r5 = getUntilSlash(after1part);
+                }
+                if (lineR5.includes('2부:')) {
+                    const after2part = lineR5.split('2부:')[1];
+                    r6 = getUntilDoubleSpace(after2part);
+                }
+            }
+
+            // --- 규칙 7: "대표기도 1부: " 이후 첫 텍스트 ~ "/" 전까지 ---
+            // --- 규칙 8: 7번 텍스트 뒤로 "부: " 탐색 -> 행 바꾸기 전까지 ---
+            let r7 = '', r8 = '';
+            const lineR7 = lines.find(l => l.includes('대표기도') && (l.includes('1부:') || l.includes('부:')));
+            if (lineR7) {
+                if (lineR7.includes('1부:')) {
+                    const after1part = lineR7.split('1부:')[1];
+                    if (after1part) {
+                        r7 = getUntilSlash(after1part);
+                    }
+                }
+                if (lineR7.includes('부:')) {
+                    const parts = lineR7.split(/부\s*:/);
+                    if (parts.length > 1) {
+                        r8 = parts[parts.length - 1].trim();
+                    }
+                }
+            }
+
+            // --- 규칙 9: "성경봉독" 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
+            // --- 규칙 10: 9번 같은 행 "1부: " 이후 첫 텍스트 ~ "/" 전까지 ---
+            // --- 규칙 11: 10번 같은 행 "2부: " 이후 첫 텍스트 ~ 행바꾸기 전까지 ---
+            let r9 = '', r10 = '', r11 = '';
+            let r9LineIndex = -1;
+            lines.forEach((l, idx) => {
+                if (l.includes('성경봉독') && r9LineIndex === -1) {
+                    r9LineIndex = idx;
+                    const afterHeader = l.replace(/.*성경봉독\s*/, '');
+                    r9 = getUntilDoubleSpace(afterHeader);
+
+                    if (l.includes('1부:')) {
+                        r10 = getUntilSlash(l.split('1부:')[1]);
+                    }
+                    if (l.includes('2부:')) {
+                        r11 = l.split('2부:')[1].trim();
+                    }
+                }
+            });
+
+            // --- 규칙 12 (수정): 11번(성경봉독) 추출 텍스트의 다음 행에서 "찬양" 이후 첫 텍스트 ~ 연속 띄어쓰기 2번 전까지 ---
+            let r12 = '';
+            let r12LineIndex = -1;
+
+            if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
+                const nextLine = lines[r9LineIndex + 1];
+                if (nextLine.includes('찬양')) {
+                    r12LineIndex = r9LineIndex + 1;
+                    const afterChanyang = nextLine.split('찬양')[1] || '';
+                    r12 = getUntilDoubleSpace(afterChanyang.trimStart());
+                }
+            }
+            if (!r12 && r9LineIndex !== -1) {
+                for (let i = r9LineIndex + 1; i < lines.length; i++) {
+                    if (lines[i].includes('찬양')) {
+                        r12LineIndex = i;
+                        const afterChanyang = lines[i].split('찬양')[1] || '';
+                        r12 = getUntilDoubleSpace(afterChanyang.trimStart());
+                        break;
+                    }
+                }
+            }
+
+            // --- 규칙 15: 12번 출력 텍스트 바로 다음 행에서 "설교" 탐색 ---
+            let r15 = '';
+            let r15LineIndex = -1;
+
+            if (r12LineIndex !== -1 && r12LineIndex + 1 < lines.length) {
+                const line15Candidate = lines[r12LineIndex + 1];
+                if (line15Candidate.includes('설교')) {
+                    r15LineIndex = r12LineIndex + 1;
+                    const afterSermon = line15Candidate.split('설교')[1] || '';
+                    r15 = getUntilDoubleSpace(afterSermon.trimStart());
+                }
+            }
+            if (!r15) {
+                const idx = lines.findIndex((l, i) => i > r12LineIndex && l.includes('설교') && !l.includes('인도,') && !l.includes('인도/'));
+                if (idx !== -1) {
+                    r15LineIndex = idx;
+                    const afterSermon = lines[idx].split('설교')[1] || '';
+                    r15 = getUntilDoubleSpace(afterSermon.trimStart());
+                }
+            }
+
+            // --- 규칙 13: 12번 다음 다음 행 "찬송 1부: " 텍스트 이후 첫 텍스트 ~ " /" 이전까지 ---
+            // --- 규칙 14: 13번과 같은 행 "2부: " 이후 첫 텍스트 ~ 연속 띄어쓰기 2번 전까지 ---
+            let r13 = '', r14 = '';
+            let lineR13 = null;
+            if (r12LineIndex !== -1 && r12LineIndex + 2 < lines.length) {
+                lineR13 = lines[r12LineIndex + 2];
+            }
+            if (!lineR13 || !lineR13.includes('찬송')) {
+                lineR13 = lines.find((l, idx) => idx > r12LineIndex && l.includes('찬송') && l.includes('1부:'));
+            }
+
+            if (lineR13) {
+                if (lineR13.includes('1부:')) {
+                    const after1 = lineR13.split('1부:')[1];
+                    r13 = getUntilSlash(after1);
+                }
+                if (lineR13.includes('2부:')) {
+                    const after2 = lineR13.split('2부:')[1];
+                    r14 = getUntilDoubleSpace(after2);
+                }
+            }
+
+            const ruleDefs = [
+                { id: 1, label: "설교자 (인도, 설교: 이후)", value: r1 },
+                { id: 2, label: "첫번째 찬송 [2부] (찬송(2부) * 이후)", value: r2 },
+                { id: 3, label: "성시교독 [2부] (성시교독(2부) 이후)", value: r3 },
+                { id: 4, label: "두번째 찬송 [2부] (3번 다음 행 찬송(2부) 이후)", value: r4 },
+                { id: 5, label: "봉헌 [1부] (4번 다음 행 봉헌 1부: 이후 / 전까지)", value: r5 },
+                { id: 6, label: "봉헌 [2부] (5번 같은 행 2부: 이후 연속 띄어쓰기 2번 전까지)", value: r6 },
+                { id: 7, label: "대표기도자 [1부] (대표기도 1부: 이후 / 전까지)", value: r7 },
+                { id: 8, label: "대표기도자 [2부] (2부: 이후 행바꾸기 전까지)", value: r8 },
+                { id: 9, label: "성경봉독 본문 (성경봉독 이후 연속 띄어쓰기 2번 전까지)", value: r9 },
+                { id: 10, label: "성경봉독 담당자 [1부] (1부: 이후 / 전까지)", value: r10 },
+                { id: 11, label: "성경봉독 담당자 [2부] (2부: 이후 행바꾸기 전까지)", value: r11 },
+                { id: 12, label: "찬양대(2부) 찬양 곡명 (두레찬양대 찬양 곡명)", value: r12 },
+                { id: 13, label: "세번째 찬송 [1부] (12번 다음 다음 행 찬송 1부: 이후 / 전까지)", value: r13 },
+                { id: 14, label: "세번째 찬송 [2부] (13번 같은 행 2부: 이후 연속 띄어쓰기 2번 전까지)", value: r14 },
+                { id: 15, label: "설교 제목 (목회 설교 제목)", value: r15 }
+            ];
+
+            last15Results = ruleDefs;
+            render15RulesUI(ruleDefs);
+        }
+
+        function render15RulesUI(ruleDefs) {
+            ruleList.innerHTML = '';
+            ruleDefs.forEach(r => {
+                const item = document.createElement('div');
+                item.className = 'rule-item';
+                item.innerHTML = `
+                    <div class="rule-title">${r.id}. ${r.label}</div>
+                    <div class="rule-value">${r.value ? escapeHtml(r.value) : '<span style="color:#aaa; font-weight:normal;">(인식 불가 / 해당 텍스트 없음)</span>'}</div>
+                `;
+                ruleList.appendChild(item);
+            });
+            parsedSection.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
