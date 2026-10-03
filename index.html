@@ -225,6 +225,19 @@
             outline: none;
             box-shadow: 0 0 0 3px rgba(211, 84, 0, 0.2);
         }
+
+        .hymn-badge {
+            background: #f3e5f5;
+            color: #7b1fa2;
+            border: 1px solid #ce93d8;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
     </style>
 </head>
 <body>
@@ -302,6 +315,29 @@
         </button>
     </div>
 
+    <!-- 4. 감지된 찬송가 PPTX 자동 다운로드 섹션 -->
+    <div class="parsed-section" id="hymnSection" style="display: none; border-top: 4px solid #8e44ad;">
+        <div class="result-header">
+            <h3><i class="fa-solid fa-music" style="color: #8e44ad;"></i> [4. 감지된 찬송가 PPTX 일괄 다운로드 (시놀로지 NAS)]</h3>
+        </div>
+
+        <div style="background: #fcf8ff; border: 1px solid #e8daef; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #2c3e50;">
+                <i class="fa-solid fa-record-vinyl" style="color: #8e44ad;"></i> 감지된 찬송가 목록
+            </div>
+            <div style="font-size: 0.88rem; color: #6c757d; margin-bottom: 10px;">
+                시놀로지 NAS 서버(<code>/예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9</code>) 경로에서 3자리 장수(<code>003</code>, <code>050</code>, <code>191</code> 등) PPTX 파일들을 불러와 압축 파일(.zip)로 한 번에 다운로드합니다.
+            </div>
+            <div id="hymnListBadges" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            </div>
+        </div>
+
+        <button id="downloadHymnsBtn" style="background-color: #8e44ad; font-size: 1.1rem; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <i class="fa-solid fa-file-zipper" style="font-size: 1.3rem;"></i> 
+            <span>찬송가 PPTX 일괄 다운로드 (.zip)</span>
+        </button>
+    </div>
+
     <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
 
     <script>
@@ -325,6 +361,38 @@
         const templateFileInput = document.getElementById('templateFileInput');
         const templateStatus = document.getElementById('templateStatus');
         const downloadPptxBtn = document.getElementById('downloadPptxBtn');
+
+        const hymnSection = document.getElementById('hymnSection');
+        const hymnListBadges = document.getElementById('hymnListBadges');
+        const downloadHymnsBtn = document.getElementById('downloadHymnsBtn');
+
+        let detectedHymnNumbers = [];
+
+        function detectHymnNumbers(ruleDefs, rawText) {
+            const hymns = new Set();
+
+            if (ruleDefs && Array.isArray(ruleDefs)) {
+                ruleDefs.forEach(r => {
+                    if (r.value && r.value.includes('찬송가')) {
+                        const matches = r.value.matchAll(/찬송가\s*(\d+)장?/g);
+                        for (const match of matches) {
+                            const num = match[1].padStart(3, '0');
+                            hymns.add(num);
+                        }
+                    }
+                });
+            }
+
+            if (rawText) {
+                const matches = rawText.matchAll(/찬송가\s*(\d+)장?/g);
+                for (const match of matches) {
+                    const num = match[1].padStart(3, '0');
+                    hymns.add(num);
+                }
+            }
+
+            return Array.from(hymns).sort();
+        }
 
         templateFileInput.addEventListener('change', function() {
             if (templateFileInput.files && templateFileInput.files[0]) {
@@ -1113,7 +1181,369 @@
             });
 
             pptxSection.style.display = 'block';
+
+            // 찬송가 번호 감지 및 시놀로지 NAS 일괄 다운로드 UI 업데이트
+            detectedHymnNumbers = detectHymnNumbers(ruleDefs, resultText.value);
+            if (detectedHymnNumbers.length > 0) {
+                hymnListBadges.innerHTML = detectedHymnNumbers.map(h => 
+                    `<span class="hymn-badge"><i class="fa-solid fa-music"></i> ${parseInt(h, 10)}장 (${h})</span>`
+                ).join('');
+                downloadHymnsBtn.disabled = false;
+                downloadHymnsBtn.innerHTML = `<i class="fa-solid fa-file-zipper" style="font-size: 1.3rem;"></i> <span>찬송가 PPTX ${detectedHymnNumbers.length}개 일괄 다운로드 (.zip)</span>`;
+            } else {
+                hymnListBadges.innerHTML = `<span style="color:#888; font-size:0.9rem;">(분석 결과에서 '찬송가' 항목이 감지되지 않았습니다)</span>`;
+                downloadHymnsBtn.disabled = true;
+                downloadHymnsBtn.innerHTML = `<i class="fa-solid fa-file-zipper" style="font-size: 1.3rem;"></i> <span>감지된 찬송가 없음</span>`;
+            }
+            hymnSection.style.display = 'block';
         }
+
+        // 하위 호환용 alias
+        const render15RulesUI = renderRulesUI;
+
+        // ===================================================
+        // PPTX 생성 및 서식 보존 치환 다운로드 핸들러
+        // ===================================================
+        downloadPptxBtn.addEventListener('click', async function() {
+            try {
+                downloadPptxBtn.disabled = true;
+                downloadPptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 자막 PPTX 생성 중...';
+
+                const isTogether = currentSundayType === "다함께 주일";
+                const itemCount = isTogether ? 6 : 13;
+
+                // 1. 입력값 맵 구축
+                const pptxData = {};
+                for (let i = 1; i <= itemCount; i++) {
+                    const inputEl = document.getElementById(`pptx_input_${i}`);
+                    let val = inputEl ? inputEl.value.trim() : '';
+                    pptxData[`${i}번`] = val;
+                }
+
+                // 2. 템플릿 ArrayBuffer 확보 (업로드 파일 OR 주일 종류별 default fetch)
+                let arrayBuffer = null;
+                if (templateFileInput.files && templateFileInput.files[0]) {
+                    arrayBuffer = await templateFileInput.files[0].arrayBuffer();
+                } else {
+                    const templateFileName = isTogether ? '다함께주일예배자막양식.pptx' : '주일예배자막양식.pptx';
+                    const templateCandidates = [
+                        `/templates/${templateFileName}`,
+                        `./templates/${templateFileName}`,
+                        `templates/${templateFileName}`
+                    ];
+                    for (let tPath of templateCandidates) {
+                        try {
+                            const res = await fetch(tPath);
+                            if (res.ok) {
+                                arrayBuffer = await res.arrayBuffer();
+                                break;
+                            }
+                        } catch (e) {}
+                    }
+                    if (!arrayBuffer) {
+                        throw new Error(`기본 PPTX 템플릿(templates/${templateFileName})을 불러올 수 없습니다. [PPTX 템플릿 선택]에서 파일(.pptx)을 직접 업로드해주세요.`);
+                    }
+                }
+
+                // 3. JSZip 압축 해제
+                const zip = await JSZip.loadAsync(arrayBuffer);
+
+                // 4. ppt/slides/slide*.xml 파일 순회 탐색
+                const slideFiles = Object.keys(zip.files).filter(fileName => 
+                    fileName.startsWith('ppt/slides/slide') && fileName.endsWith('.xml')
+                );
+
+                const parser = new DOMParser();
+                const serializer = new XMLSerializer();
+
+                for (const fileName of slideFiles) {
+                    const xmlText = await zip.files[fileName].async('string');
+                    const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+                    
+                    let isModified = false;
+                    const pNodes = xmlDoc.getElementsByTagName('a:p');
+
+                    for (let i = 0; i < pNodes.length; i++) {
+                        const p = pNodes[i];
+                        
+                        // 단락 내 모든 <a:r> 수집 (Run splitting 대응)
+                        const runs = [];
+                        const walk = (node) => {
+                            for (let child of node.childNodes) {
+                                if (child.nodeType === 1) {
+                                    const localName = child.localName || child.tagName.split(':').pop();
+                                    if (localName === 'r') {
+                                        runs.push(child);
+                                    } else {
+                                        walk(child);
+                                    }
+                                }
+                            }
+                        };
+                        walk(p);
+
+                        if (runs.length === 0) continue;
+
+                        // 각 Run의 <a:t> 노드 및 텍스트 수집
+                        const runTextNodes = [];
+                        const runTexts = [];
+
+                        runs.forEach(r => {
+                            let tNode = null;
+                            for (let child of r.childNodes) {
+                                if (child.nodeType === 1) {
+                                    const localName = child.localName || child.tagName.split(':').pop();
+                                    if (localName === 't') {
+                                        tNode = child;
+                                        break;
+                                    }
+                                }
+                            }
+                            runTextNodes.push(tNode);
+                            runTexts.push(tNode && tNode.textContent ? tNode.textContent : "");
+                        });
+
+                        const fullText = runTexts.join("");
+                        if (!/\{(\d+)번\}/.test(fullText)) continue;
+
+                        // 각 Run의 문자 범위(Offset) 산출
+                        const runRanges = [];
+                        let currChar = 0;
+                        for (let rIdx = 0; rIdx < runTexts.length; rIdx++) {
+                            const start = currChar;
+                            const end = currChar + runTexts[rIdx].length;
+                            runRanges.push({ start, end });
+                            currChar = end;
+                        }
+
+                        // 전체 단락에서 {N번} 매칭 위치 전부 검색
+                        const regex = /\{(\d+)번\}/g;
+                        const matches = [];
+                        let m;
+                        while ((m = regex.exec(fullText)) !== null) {
+                            matches.push({
+                                matchStr: m[0],
+                                numStr: m[1],
+                                index: m.index,
+                                length: m[0].length
+                            });
+                        }
+
+                        if (matches.length === 0) continue;
+
+                        // 역순 처리 (문자 인덱스 변동 최소화)
+                        for (let mIdx = matches.length - 1; mIdx >= 0; mIdx--) {
+                            const matchObj = matches[mIdx];
+                            const mStart = matchObj.index;
+                            const mEnd = matchObj.index + matchObj.length;
+                            const key = `${matchObj.numStr}번`;
+                            const replVal = (pptxData.hasOwnProperty(key) && pptxData[key] !== null) ? pptxData[key] : matchObj.matchStr;
+
+                            // 치환 대상 {N번}이 속한 Run 구간(startRun ~ endRun) 탐색
+                            let startRun = -1;
+                            let endRun = -1;
+
+                            for (let rIdx = 0; rIdx < runRanges.length; rIdx++) {
+                                const rS = runRanges[rIdx].start;
+                                const rE = runRanges[rIdx].end;
+
+                                if (startRun === -1) {
+                                    if ((mStart >= rS && mStart < rE) || (rS === rE && mStart === rS)) {
+                                        startRun = rIdx;
+                                    }
+                                }
+                                if (mEnd > rS && mEnd <= rE) {
+                                    endRun = rIdx;
+                                }
+                            }
+
+                            if (startRun === -1) startRun = 0;
+                            if (endRun === -1) endRun = runRanges.length - 1;
+
+                            // 1번 (설교자) 특수 처리: 이름 부분(44pt)과 직분자 텍스트(32pt) 분리 주입
+                            if (matchObj.numStr === '1') {
+                                const fullVal = (pptxData['1번'] || '').trim();
+                                const titleMatch = fullVal.match(/[\s]*(담임목사|목사|전도사|강도사|장로|집사|권사)$/);
+                                let namePart = fullVal;
+                                let titlePart = '';
+                                if (titleMatch) {
+                                    titlePart = titleMatch[1];
+                                    namePart = fullVal.substring(0, titleMatch.index).trim();
+                                }
+
+                                // 1번 시작 Run에는 이름 텍스트만 치환 (44pt 서식 유지)
+                                const spanText = runTexts.slice(startRun, endRun + 1).join("");
+                                const newSpanText = spanText.replace(matchObj.matchStr, namePart);
+                                runTexts[startRun] = newSpanText;
+                                for (let k = startRun + 1; k <= endRun; k++) {
+                                    runTexts[k] = "";
+                                }
+
+                                // 직분자 텍스트는 32pt (sz="3200") Run에 주입하여 폰트 크기 32pt 적용
+                                let titleRunFound = false;
+                                for (let tIdx = endRun + 1; tIdx < runs.length; tIdx++) {
+                                    const rNode = runs[tIdx];
+                                    const rPr = rNode.getElementsByTagName('a:rPr')[0] || rNode.getElementsByTagName('rPr')[0];
+                                    const sz = rPr ? rPr.getAttribute('sz') : null;
+                                    
+                                    if (sz === '3200' || runTexts[tIdx].includes('목사')) {
+                                        runTexts[tIdx] = titlePart ? titlePart : '';
+                                        if (rPr) {
+                                            rPr.setAttribute('sz', '3200'); // 32pt 지정
+                                        }
+                                        titleRunFound = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!titleRunFound && titlePart && endRun + 1 < runs.length) {
+                                    const nextR = runs[endRun + 1];
+                                    const rPr = nextR.getElementsByTagName('a:rPr')[0] || nextR.getElementsByTagName('rPr')[0];
+                                    if (rPr) rPr.setAttribute('sz', '3200');
+                                    runTexts[endRun + 1] = ' ' + titlePart;
+                                }
+                            } else {
+                                // 일반 항목 치환
+                                const spanText = runTexts.slice(startRun, endRun + 1).join("");
+                                const newSpanText = spanText.replace(matchObj.matchStr, replVal);
+
+                                runTexts[startRun] = newSpanText;
+                                for (let k = startRun + 1; k <= endRun; k++) {
+                                    runTexts[k] = "";
+                                }
+                            }
+                        }
+
+                        // 변경된 runTexts 내용을 <a:t> 요소에 갱신
+                        for (let rIdx = 0; rIdx < runTextNodes.length; rIdx++) {
+                            const tNode = runTextNodes[rIdx];
+                            if (tNode) {
+                                tNode.textContent = runTexts[rIdx];
+                            } else if (runTexts[rIdx]) {
+                                const rNode = runs[rIdx];
+                                const nsURI = rNode.namespaceURI || "http://schemas.openxmlformats.org/drawingml/2006/main";
+                                const prefix = rNode.prefix ? rNode.prefix + ":" : "a:";
+                                const newT = xmlDoc.createElementNS(nsURI, prefix + "t");
+                                newT.textContent = runTexts[rIdx];
+                                rNode.appendChild(newT);
+                            }
+                        }
+
+                        isModified = true;
+                    }
+
+                    if (isModified) {
+                        const newXmlText = serializer.serializeToString(xmlDoc);
+                        zip.file(fileName, newXmlText);
+                    }
+                }
+
+                // 5. Blob 생성 및 다운로드 트리거
+                const blob = await zip.generateAsync({
+                    type: 'blob',
+                    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                });
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const typeLabel = isTogether ? '다함께주일예배자막' : '주일예배자막';
+                const fileName = `${year}-${month}-${day}_${typeLabel}.pptx`;
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast(`${fileName} 다운로드가 완료되었습니다!`);
+
+            } catch (err) {
+                console.error('[PPTX Generation Error]:', err);
+                alert(`PPTX 생성 오류: ${err.message}`);
+            } finally {
+                downloadPptxBtn.disabled = false;
+                downloadPptxBtn.innerHTML = '<i class="fa-solid fa-file-arrow-down" style="font-size: 1.3rem;"></i> <span>자막 PPTX 생성 및 다운로드</span>';
+            }
+        });
+
+        // ===================================================
+        // 시놀로지 NAS 찬송가 PPTX 일괄 다운로드 핸들러
+        // ===================================================
+        downloadHymnsBtn.addEventListener('click', async function() {
+            if (!detectedHymnNumbers.length) return;
+
+            try {
+                downloadHymnsBtn.disabled = true;
+                downloadHymnsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 시놀로지 NAS에서 찬송가 PPTX 다운로드 중...';
+
+                const zip = new JSZip();
+                let successCount = 0;
+                const failedHymns = [];
+
+                const downloadPromises = detectedHymnNumbers.map(async (hymnNo) => {
+                    try {
+                        const proxyUrl = `/api/synology/download-hymn?hymnNo=${encodeURIComponent(hymnNo)}`;
+                        const res = await fetch(proxyUrl);
+                        
+                        if (!res.ok) {
+                            const errData = await res.json().catch(() => ({}));
+                            throw new Error(errData.error || `HTTP ${res.status}`);
+                        }
+
+                        const arrayBuffer = await res.arrayBuffer();
+                        const fileName = `새찬송가${hymnNo}장_normal_White.pptx`;
+                        zip.file(fileName, arrayBuffer);
+                        successCount++;
+                    } catch (err) {
+                        console.error(`[찬송가 ${parseInt(hymnNo, 10)}장 다운로드 실패]:`, err);
+                        failedHymns.push({ hymnNo, error: err.message });
+                    }
+                });
+
+                await Promise.all(downloadPromises);
+
+                if (successCount === 0) {
+                    const firstErr = failedHymns[0] ? failedHymns[0].error : '알 수 없는 오류';
+                    throw new Error(`찬송가 PPTX 다운로드에 모두 실패했습니다.\n\n사유: ${firstErr}`);
+                }
+
+                const blob = await zip.generateAsync({ type: 'blob' });
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const zipFileName = `${year}-${month}-${day}_찬송가_PPT.zip`;
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = zipFileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                if (failedHymns.length > 0) {
+                    const failList = failedHymns.map(f => `${parseInt(f.hymnNo, 10)}장`).join(', ');
+                    alert(`⚠️ 찬송가 PPTX 일부 다운로드 완료 (${successCount}/${detectedHymnNumbers.length}개 성공)\n\n실패한 항목 (${failList}):\n${failedHymns[0].error}`);
+                } else {
+                    showToast(`${zipFileName} 다운로드가 완료되었습니다!`);
+                }
+
+            } catch (err) {
+                console.error('[Hymn Batch Download Error]:', err);
+                alert(`🚨 찬송가 PPTX 일괄 다운로드 실패:\n\n${err.message}`);
+            } finally {
+                downloadHymnsBtn.disabled = false;
+                downloadHymnsBtn.innerHTML = `<i class="fa-solid fa-file-zipper" style="font-size: 1.3rem;"></i> <span>찬송가 PPTX ${detectedHymnNumbers.length}개 일괄 다운로드 (.zip)</span>`;
+            }
+        });
 
         // 하위 호환용 alias
         const render15RulesUI = renderRulesUI;
