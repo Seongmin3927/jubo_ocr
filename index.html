@@ -837,45 +837,83 @@
             // --- 9번: 성경봉독 본문 ---
             let r9 = '';
             let r9LineIndex = -1;
-            if (r10LineIndex !== -1 && r10LineIndex + 1 < lines.length) {
-                r9LineIndex = r10LineIndex + 1;
-                r9 = lines[r9LineIndex].trim();
-            }
+            lines.forEach((l, idx) => {
+                if (l.includes('성경봉독') && r9LineIndex === -1) {
+                    r9LineIndex = idx;
+                    if (idx + 1 < lines.length) {
+                        r9 = lines[idx + 1].trim();
+                    }
+                }
+            });
 
-            // --- 10번: 찬양대(2부) 찬양 곡명 ---
+            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) ---
+            // "성경봉독" 행 이후, "설교" 행 이전에 위치한 "찬양" 행 특정
             let r12 = '';
             let r12LineIndex = -1;
-            if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
-                r12LineIndex = r9LineIndex + 1;
-                r12 = lines[r12LineIndex].trim();
+            let sermonLineIndex = lines.findIndex((l, idx) => idx > r9LineIndex && (l.replace(/\s+/g, '').startsWith('설교') || l.includes('설교:')));
+            
+            lines.forEach((l, idx) => {
+                if (idx > r9LineIndex && (sermonLineIndex === -1 || idx < sermonLineIndex)) {
+                    if (l.includes('찬양') && r12LineIndex === -1) {
+                        r12LineIndex = idx;
+                        const cleaned = l.replace(/.*찬양대?\s*/, '').replace(/.*찬양\s*/, '').replace(/2부.*/, '').replace(/두레찬양대.*/, '').trim();
+                        r12 = cleaned.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
+                    }
+                }
+            });
+            if (!r12 && r9LineIndex !== -1 && r9LineIndex + 2 < lines.length) {
+                const cand = lines[r9LineIndex + 2].replace(/.*찬양\s*/, '').trim();
+                r12 = cand.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
             }
 
-            // --- 11번: 설교 제목 ---
+            // --- 11번: 설교 제목 (sermonTitle) ---
+            // 좌측 열이 "설교"인 행 탐색 -> 중앙 열 텍스트 추출 (라벨 "설교" 및 우측 "설교자" 제외)
             let r13 = '';
             let r13LineIndex = -1;
-            if (r12LineIndex !== -1 && r12LineIndex + 3 < lines.length) {
-                r13LineIndex = r12LineIndex + 3;
-                r13 = lines[r13LineIndex].trim();
+            lines.forEach((l, idx) => {
+                if (idx > r9LineIndex && r13LineIndex === -1) {
+                    const compact = l.replace(/\s+/g, '');
+                    if (compact.startsWith('설교') && !compact.includes('설교자') && !compact.includes('설교:')) {
+                        r13LineIndex = idx;
+                        r13 = l.replace(/^설\s*교\s*/, '').replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
+                    }
+                }
+            });
+            if (!r13 && sermonLineIndex !== -1) {
+                const sLine = lines[sermonLineIndex];
+                r13 = sLine.replace(/.*설교\s*:\s*/, '').replace(/.*설\s*교\s*/, '').replace(/설교자.*/, '').trim();
             }
 
             // --- 12번: 설교후 찬양 [1부] & 13번: 설교후 찬양 [2부] ---
+            // "설교" 행 바로 다음 순서인 좌측 열 "찬송" 행 탐색 ➔ 1부 / 2부 정규식 분리
             let r14 = '', r15 = '';
-            let r14LineIndex = -1;
-            if (r13LineIndex !== -1 && r13LineIndex + 3 < lines.length) {
-                r14LineIndex = r13LineIndex + 3;
-            } else if (r13LineIndex !== -1) {
-                r14LineIndex = lines.findIndex((l, idx) => idx > r13LineIndex && l.includes('1부:'));
+            let lineR14 = null;
+
+            if (r13LineIndex !== -1) {
+                lineR14 = lines.slice(r13LineIndex + 1).find(l => l.includes('찬송') || l.includes('찬양'));
+            } else {
+                lineR14 = lines.find((l, idx) => idx > r9LineIndex && (l.includes('찬송') || l.includes('찬양')) && (l.includes('1부') || l.includes('2부')));
             }
 
-            if (r14LineIndex !== -1 && r14LineIndex < lines.length) {
-                const targetLine = lines[r14LineIndex];
-                if (targetLine.includes('1부:')) {
-                    const after1 = targetLine.split('1부:')[1] || '';
-                    r14 = getUntilSlash(after1);
+            if (lineR14) {
+                const targetText = lineR14.replace(/.*찬송\s*/, '').replace(/.*찬양\s*/, '').replace(/다함께.*/, '').trim();
+                
+                // 1부 패턴 파싱
+                const match1 = targetText.match(/1부\s*:\s*([^/]+)/) || targetText.match(/1부\s+([^/]+)/);
+                if (match1) {
+                    r14 = match1[1].trim();
                 }
-                if (targetLine.includes('2부:')) {
-                    const after2 = targetLine.split('2부:')[1] || '';
-                    r15 = after2.trim();
+
+                // 2부 패턴 파싱
+                const match2 = targetText.match(/2부\s*:\s*(.+)/) || targetText.match(/2부\s+(.+)/);
+                if (match2) {
+                    r15 = match2[1].trim();
+                }
+
+                // 단일 곡명 예외 처리
+                if (!r14 && !r15 && targetText) {
+                    r14 = targetText.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
+                    r15 = r14;
                 }
             }
 
