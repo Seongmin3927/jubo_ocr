@@ -549,25 +549,16 @@
             }
 
             if (isTogetherSunday) {
-                const togetherJson = parseTogetherSundayClova(clovaRaw, rawText);
-                
-                // sundayType 정보 포함
+                const togetherJson = parseTogetherSundayRules(rawText, lines, clovaRaw);
                 togetherJson.sundayType = currentSundayType;
 
                 const ruleDefs = [
                     { id: 1, label: "설교자", value: togetherJson.preacher },
-                    { id: 2, label: "첫번째 찬송 [2부]", value: "" },
-                    { id: 3, label: "성시교독 [2부]", value: "" },
-                    { id: 4, label: "두번째 찬송 [2부]", value: "" },
-                    { id: 5, label: "대표기도자 [1부]", value: togetherJson.prayer },
-                    { id: 6, label: "대표기도자 [2부]", value: togetherJson.prayer },
-                    { id: 7, label: "성경봉독 담당자 [1부]", value: togetherJson.scriptureReader },
-                    { id: 8, label: "성경봉독 담당자 [2부]", value: togetherJson.scriptureReader },
-                    { id: 9, label: "성경봉독 본문", value: togetherJson.scripturePassage },
-                    { id: 10, label: "찬양대(2부) 찬양 곡명", value: (togetherJson.specialPraiseTitle && togetherJson.specialPraiseTitle !== "-없음-") ? togetherJson.specialPraiseTitle : "" },
-                    { id: 11, label: "설교 제목", value: togetherJson.sermonTitle },
-                    { id: 12, label: "설교후 찬양 [1부]", value: togetherJson.praiseAfterSermon },
-                    { id: 13, label: "설교후 찬양 [2부]", value: togetherJson.praiseAfterSermon }
+                    { id: 2, label: "대표기도", value: togetherJson.prayer },
+                    { id: 3, label: "성경봉독 본문", value: togetherJson.scripturePassage },
+                    { id: 4, label: "설교 제목", value: togetherJson.sermonTitle },
+                    { id: 5, label: "성경봉독 담당자", value: togetherJson.scriptureReader },
+                    { id: 6, label: "설교후 찬양", value: togetherJson.praiseAfterSermon }
                 ];
 
                 last15Results = ruleDefs;
@@ -576,6 +567,63 @@
             } else {
                 parseNormalSundayRules(rawText, lines);
             }
+        }
+
+        // ===================================================
+        // [다함께 주일] 지정 추출 함수
+        // ===================================================
+        function parseTogetherSundayRules(rawText, lines, clovaRaw) {
+            // 1. 설교자: 기존 로직 재사용
+            let preacher = "";
+            if (clovaRaw) {
+                const parsed = parseTogetherSundayClova(clovaRaw, rawText);
+                preacher = parsed.preacher;
+            }
+            if (!preacher) {
+                const fallback = parseTogetherSundayTextFallback(rawText);
+                preacher = fallback.preacher;
+            }
+
+            // 2. 대표기도: 위에서 첫번째 등장하는 "대표기도" 탐색 -> 바로 다음 행
+            let prayer = "";
+            const prayerIdx = lines.findIndex(l => l.includes('대표기도'));
+            if (prayerIdx !== -1 && prayerIdx + 1 < lines.length) {
+                prayer = lines[prayerIdx + 1].trim();
+            }
+
+            // 3. 성경봉독: 위에서 첫번째 등장하는 "성경봉독" 탐색 -> 바로 다음 행
+            let scripturePassage = "";
+            let scriptureIdx = lines.findIndex(l => l.includes('성경봉독') || l.includes('성경 봉독'));
+            if (scriptureIdx !== -1 && scriptureIdx + 1 < lines.length) {
+                scripturePassage = lines[scriptureIdx + 1].trim();
+            }
+
+            // 4. 설교 제목: 3번 출력값의 다음 행 탐색
+            let sermonTitle = "";
+            if (scriptureIdx !== -1 && scriptureIdx + 2 < lines.length) {
+                sermonTitle = lines[scriptureIdx + 2].trim();
+            }
+
+            // 5. 설교후 찬양: 4번 출력값의 다음 행 탐색
+            let praiseAfterSermon = "";
+            if (scriptureIdx !== -1 && scriptureIdx + 3 < lines.length) {
+                praiseAfterSermon = lines[scriptureIdx + 3].trim();
+            }
+
+            // 6. 성경 봉독 담당자: 5번 출력값의 다음 행 탐색
+            let scriptureReader = "";
+            if (scriptureIdx !== -1 && scriptureIdx + 4 < lines.length) {
+                scriptureReader = lines[scriptureIdx + 4].trim();
+            }
+
+            return {
+                preacher,
+                prayer,
+                scripturePassage,
+                sermonTitle,
+                praiseAfterSermon,
+                scriptureReader
+            };
         }
 
         // ===================================================
@@ -1050,39 +1098,19 @@
             });
             parsedSection.style.display = 'block';
 
-            // PPTX 검토 폼 렌더링 (1번 ~ 13번)
+            // PPTX 검토 폼 렌더링 (ruleDefs 항목 수에 맞춰 동적 렌더링)
             pptxFormGrid.innerHTML = '';
-            const labels = [
-                "1. 설교자 ({1번})",
-                "2. 첫번째 찬송 [2부] ({2번})",
-                "3. 성시교독 [2부] ({3번})",
-                "4. 두번째 찬송 [2부] ({4번})",
-                "5. 대표기도자 [1부] ({5번})",
-                "6. 대표기도자 [2부] ({6번})",
-                "7. 성경봉독 담당자 [1부] ({7번})",
-                "8. 성경봉독 담당자 [2부] ({8번})",
-                "9. 성경봉독 본문 ({9번})",
-                "10. 찬양대(2부) 찬양 곡명 ({10번})",
-                "11. 설교 제목 ({11번})",
-                "12. 설교후 찬양 [1부] ({12번})",
-                "13. 설교후 찬양 [2부] ({13번})"
-            ];
-
-            for (let i = 1; i <= 13; i++) {
-                const def = ruleDefs.find(r => r.id === i);
-                let rawVal = def ? def.value || '' : '';
-                if (i === 1) {
-                    rawVal = cleanPreacherName(rawVal);
-                }
-
+            ruleDefs.forEach(r => {
+                const i = r.id;
+                const rawVal = r.value || '';
                 const group = document.createElement('div');
                 group.className = 'pptx-form-group';
                 group.innerHTML = `
-                    <label for="pptx_input_${i}">${labels[i - 1]}</label>
+                    <label for="pptx_input_${i}">${i}. ${escapeHtml(r.label)} ({${i}번})</label>
                     <input type="text" id="pptx_input_${i}" value="${escapeHtml(rawVal)}" placeholder="내용 입력">
                 `;
                 pptxFormGrid.appendChild(group);
-            }
+            });
 
             pptxSection.style.display = 'block';
         }
@@ -1098,23 +1126,28 @@
                 downloadPptxBtn.disabled = true;
                 downloadPptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 자막 PPTX 생성 중...';
 
-                // 1. 1번~13번 입력값 및 전처리 맵 구축
+                const isTogether = currentSundayType === "다함께 주일";
+                const itemCount = isTogether ? 6 : 13;
+
+                // 1. 입력값 맵 구축
                 const pptxData = {};
-                for (let i = 1; i <= 13; i++) {
+                for (let i = 1; i <= itemCount; i++) {
                     const inputEl = document.getElementById(`pptx_input_${i}`);
                     let val = inputEl ? inputEl.value.trim() : '';
-                    if (i === 1) {
-                        val = cleanPreacherName(val);
-                    }
                     pptxData[`${i}번`] = val;
                 }
 
-                // 2. 템플릿 ArrayBuffer 확보 (업로드 파일 OR default fetch)
+                // 2. 템플릿 ArrayBuffer 확보 (업로드 파일 OR 주일 종류별 default fetch)
                 let arrayBuffer = null;
                 if (templateFileInput.files && templateFileInput.files[0]) {
                     arrayBuffer = await templateFileInput.files[0].arrayBuffer();
                 } else {
-                    const templateCandidates = ['/templates/주일예배자막양식.pptx', './templates/주일예배자막양식.pptx', 'templates/주일예배자막양식.pptx'];
+                    const templateFileName = isTogether ? '다함께주일예배자막양식.pptx' : '주일예배자막양식.pptx';
+                    const templateCandidates = [
+                        `/templates/${templateFileName}`,
+                        `./templates/${templateFileName}`,
+                        `templates/${templateFileName}`
+                    ];
                     for (let tPath of templateCandidates) {
                         try {
                             const res = await fetch(tPath);
@@ -1125,7 +1158,7 @@
                         } catch (e) {}
                     }
                     if (!arrayBuffer) {
-                        throw new Error("기본 PPTX 템플릿(templates/주일예배자막양식.pptx)을 불러올 수 없습니다. [PPTX 템플릿 선택]에서 파일(.pptx)을 업로드해주세요.");
+                        throw new Error(`기본 PPTX 템플릿(templates/${templateFileName})을 불러올 수 없습니다. [PPTX 템플릿 선택]에서 파일(.pptx)을 직접 업로드해주세요.`);
                     }
                 }
 
@@ -1322,7 +1355,7 @@
                     }
                 }
 
-                // 5. Blob 생성 및 YYYY-MM-DD_주일예배자막.pptx 다운로드 트리거
+                // 5. Blob 생성 및 다운로드 트리거
                 const blob = await zip.generateAsync({
                     type: 'blob',
                     mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
@@ -1332,7 +1365,8 @@
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const day = String(now.getDate()).padStart(2, '0');
-                const fileName = `${year}-${month}-${day}_주일예배자막.pptx`;
+                const typeLabel = isTogether ? '다함께주일예배자막' : '주일예배자막';
+                const fileName = `${year}-${month}-${day}_${typeLabel}.pptx`;
 
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
