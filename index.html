@@ -384,45 +384,88 @@
         }
 
         // ===================================================
+        // 상단 헤더 구간 기반 주일 유형 정밀 판정 함수 (일반 주일 vs 다함께 주일)
+        // ===================================================
+        function detectSundayType(rawText) {
+            const lines = rawText.split('\n');
+
+            let startIdx = -1;
+            let endIdx = -1;
+
+            // 시작 텍스트 탐색: "설립 1986" | "dooresarang.org" | "YYYY. M. D" (발행일)
+            const dateRegex = /\d{4}\.\s*\d{1,2}\.\s*\d{1,2}/;
+            lines.forEach((line, idx) => {
+                const compact = line.replace(/\s+/g, '');
+                if (startIdx === -1) {
+                    if (compact.includes('설립1986') || compact.includes('dooresarang.org') || dateRegex.test(line)) {
+                        startIdx = idx;
+                    }
+                }
+            });
+
+            // 종료 텍스트 탐색: 예배 인도/설교 안내 행 ("1부 인도", "예배 : 11시", "인도:", "설교:" 등)
+            lines.forEach((line, idx) => {
+                const compact = line.replace(/\s+/g, '');
+                if (endIdx === -1 && idx >= (startIdx !== -1 ? startIdx : 0)) {
+                    if (compact.includes('1부인도') || compact.includes('예배:11시') || compact.includes('예배:11시') || line.includes('인도:') || line.includes('설교:')) {
+                        endIdx = idx;
+                    }
+                }
+            });
+
+            // 방어 코드: 시작/종료 지점을 찾지 못할 경우 상위 15줄 이내 검사
+            let headerLines = [];
+            if (startIdx !== -1 && endIdx !== -1 && startIdx <= endIdx) {
+                headerLines = lines.slice(startIdx, endIdx + 1);
+            } else if (startIdx !== -1) {
+                headerLines = lines.slice(startIdx, startIdx + 15);
+            } else if (endIdx !== -1) {
+                headerLines = lines.slice(0, Math.max(endIdx + 1, 15));
+            } else {
+                headerLines = lines.slice(0, Math.min(lines.length, 15));
+            }
+
+            const headerText = headerLines.join(' ');
+            // 모든 공백(띄어쓰기) 제거한 정규화 문자열 생성
+            const compactHeader = headerText.replace(/\s+/g, '');
+
+            // "다함께주일" 키워드 포함 여부 판정 ("추석다함께주일", "다 함 께 주 일" 등 모두 지원)
+            const isTogether = compactHeader.includes('다함께주일');
+
+            return {
+                isTogetherSunday: isTogether,
+                sundayType: isTogether ? "다함께 주일" : "일반 주일",
+                headerSnippet: headerText.trim()
+            };
+        }
+
+        // ===================================================
         // 주일 종류 판별 & 일반 주일 / 다함께 주일 파서
         // ===================================================
         function processRules(rawText, clovaRaw) {
             const lines = rawText.split('\n');
-            const compactRaw = rawText.replace(/\s+/g, '');
-            
-            let isTogetherSunday = false;
 
-            if (compactRaw.includes("다함께주일") || compactRaw.includes("다함께  주일") || compactRaw.includes("다함께주일예배")) {
-                isTogetherSunday = true;
-                currentSundayType = "다함께 주일";
+            // 상단 헤더 영역 기반 주일 유형 정밀 판정
+            const detection = detectSundayType(rawText);
+            const isTogetherSunday = detection.isTogetherSunday;
+            currentSundayType = detection.sundayType;
+
+            if (isTogetherSunday) {
                 sundayBadge.innerText = "다함께 주일";
                 sundayTypeBanner.className = "sunday-type-banner together-sunday";
-                sundayDesc.innerText = "💡 '다함께 주일' 텍스트 감지 (1부 예배 없이 2부 예배만 진행 / 좌표 기반 정밀 추출)";
-            } else if (compactRaw.includes("영광을하나님께")) {
-                isTogetherSunday = false;
-                currentSundayType = "일반 주일";
+                sundayDesc.innerText = "💡 상단 헤더 영역에서 '다함께 주일' 감지 (1부 예배 없이 2부 예배만 진행 / 2D 좌표 정밀 파싱)";
+            } else {
                 sundayBadge.innerText = "일반 주일";
                 sundayTypeBanner.className = "sunday-type-banner";
-                sundayDesc.innerText = "💡 '영광을 하나님께' 텍스트 감지 (1부, 2부 예배 진행)";
-            } else {
-                if (compactRaw.includes("다함께")) {
-                    isTogetherSunday = true;
-                    currentSundayType = "다함께 주일";
-                    sundayBadge.innerText = "다함께 주일";
-                    sundayTypeBanner.className = "sunday-type-banner together-sunday";
-                    sundayDesc.innerText = "💡 '다함께 주일' 관련 문구 감지";
-                } else {
-                    isTogetherSunday = false;
-                    currentSundayType = "일반 주일";
-                    sundayBadge.innerText = "일반 주일";
-                    sundayTypeBanner.className = "sunday-type-banner";
-                    sundayDesc.innerText = "💡 일반 주일로 판별되었습니다.";
-                }
+                sundayDesc.innerText = "💡 일반 주일로 판별되었습니다. (1부 및 2부 예배 진행)";
             }
 
             if (isTogetherSunday) {
                 const togetherJson = parseTogetherSundayClova(clovaRaw, rawText);
                 
+                // sundayType 정보 포함
+                togetherJson.sundayType = currentSundayType;
+
                 const ruleDefs = [
                     { id: 1, label: "설교자 (preacher)", value: togetherJson.preacher },
                     { id: 2, label: "대표기도 (prayer)", value: togetherJson.prayer },
@@ -447,6 +490,7 @@
         // ===================================================
         function parseTogetherSundayClova(clovaRaw, rawText) {
             let result = {
+                sundayType: "다함께 주일",
                 preacher: "",
                 prayer: "",
                 scripturePassage: "",
