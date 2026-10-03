@@ -336,7 +336,7 @@
 
         function cleanPreacherName(val) {
             if (!val) return "";
-            return val.replace(/[\s]*(담임목사|목사|전도사|강도사|장로|집사|권사)$/g, '').trim();
+            return val.trim();
         }
 
         let selectedFile = null;
@@ -1053,7 +1053,7 @@
             // PPTX 검토 폼 렌더링 (1번 ~ 13번)
             pptxFormGrid.innerHTML = '';
             const labels = [
-                "1. 설교자 이름 ({1번} - 직분 제외)",
+                "1. 설교자 ({1번})",
                 "2. 첫번째 찬송 [2부] ({2번})",
                 "3. 성시교독 [2부] ({3번})",
                 "4. 두번째 찬송 [2부] ({4번})",
