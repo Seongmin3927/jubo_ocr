@@ -1061,18 +1061,165 @@
                 r4 = lines[r4LineIndex + 1].trim();
             }
 
-            // --- 5번: 대표기도자 [1부] & 6번: 대표기도자 [2부] ---
-            let r7 = '', r8 = '';
-            let r7LineIndex = lines.findIndex(l => l.includes('대표기도'));
-            if (r7LineIndex !== -1 && r7LineIndex + 1 < lines.length) {
-                const targetLine = lines[r7LineIndex + 1];
+            // =========================================================
+            // [패턴 기반 인명 라인 추출] 5,6번(대표기도자) & 7,8번(성경봉독 담당자)
+            // =========================================================
+            let r7 = '', r8 = '';   // 5,6번: 대표기도자 1부 / 2부
+            let r10 = '', r11 = ''; // 7,8번: 성경봉독 담당자 1부 / 2부
+            let prayerLineIdx = -1;
+            let scriptureReaderLineIdx = -1;
+
+            const excludeKeywords = ['찬송가', '소유', '후렴', '성령', '찬송'];
+            const titleKeywords = ['장로', '집사', '권사', '형제', '자매', '학생', '목사', '조', '성도', '순장'];
+
+            function cleanNameText(str) {
+                if (!str) return '';
+                return str.replace(/^[\s*:;,\/\*\(\)]+/, '')
+                          .replace(/[\s*:;,\/\*\(\)]+$/, '')
+                          .replace(/\s+/g, ' ')
+                          .trim();
+            }
+
+            function parse12BuLine(line) {
+                if (!line) return null;
+                // 곡명/찬양 라인 제외
+                if (excludeKeywords.some(kw => line.includes(kw))) return null;
+                if (!line.includes('1부') || !line.includes('2부')) return null;
+
+                let p1 = '', p2 = '';
+                // 1부: NAME1 / 2부: NAME2 또는 1부: NAME1 2부: NAME2 패턴 파싱
+                if (line.includes('1부:')) {
+                    const after1 = line.split('1부:')[1] || '';
+                    if (after1.includes('2부:')) {
+                        const spl = after1.split('2부:');
+                        p1 = spl[0].replace(/[\/|]/g, '');
+                        p2 = spl[1];
+                    } else if (after1.includes('2부')) {
+                        const spl = after1.split('2부');
+                        p1 = spl[0].replace(/[\/|]/g, '');
+                        p2 = spl[1].replace(/^[\s*:]*/, '');
+                    }
+                } else if (line.includes('1부')) {
+                    const after1 = line.split('1부')[1].replace(/^[\s*:]*/, '');
+                    if (after1.includes('2부:')) {
+                        const spl = after1.split('2부:');
+                        p1 = spl[0].replace(/[\/|]/g, '');
+                        p2 = spl[1];
+                    } else if (after1.includes('2부')) {
+                        const spl = after1.split('2부');
+                        p1 = spl[0].replace(/[\/|]/g, '');
+                        p2 = spl[1].replace(/^[\s*:]*/, '');
+                    }
+                }
+
+                p1 = cleanNameText(p1);
+                p2 = cleanNameText(p2);
+
+                if (p1 || p2) {
+                    const hasTitle = titleKeywords.some(kw => line.includes(kw) || p1.includes(kw) || p2.includes(kw));
+                    return { p1, p2, hasTitle };
+                }
+                return null;
+            }
+
+            // 라벨 위치 찾기
+            const prayerLabelIdx = lines.findIndex(l => l.includes('대표기도') || l.includes('대표 기도'));
+            const scriptureLabelIdx = lines.findIndex(l => (l.includes('성경봉독') || l.includes('성경 봉독')) && !l.includes('담당자'));
+
+            // 모든 1부/2부 라인 수집
+            const candidateLines = [];
+            lines.forEach((l, idx) => {
+                const parsed = parse12BuLine(l);
+                if (parsed) {
+                    candidateLines.push({ idx, ...parsed });
+                }
+            });
+
+            // 직분 키워드가 있는 라인 우선 정렬 (단, 2개 이상일 때)
+            let selectedLines = candidateLines.filter(c => c.hasTitle);
+            if (selectedLines.length < 2) {
+                selectedLines = candidateLines;
+            }
+
+            let prayerCandidate = null;
+            let scriptureCandidate = null;
+
+            if (selectedLines.length >= 2) {
+                // 대표기도 및 성경봉독 라벨 위치와 가장 가까운 후보 매칭
+                if (prayerLabelIdx !== -1 && scriptureLabelIdx !== -1) {
+                    let bestPrayer = null, bestPrayerDist = Infinity;
+                    let bestScripture = null, bestScriptureDist = Infinity;
+
+                    selectedLines.forEach(cand => {
+                        const distP = Math.abs(cand.idx - prayerLabelIdx);
+                        const distS = Math.abs(cand.idx - scriptureLabelIdx);
+                        if (distP < bestPrayerDist) {
+                            bestPrayerDist = distP;
+                            bestPrayer = cand;
+                        }
+                        if (distS < bestScriptureDist) {
+                            bestScriptureDist = distS;
+                            bestScripture = cand;
+                        }
+                    });
+
+                    if (bestPrayer && bestScripture && bestPrayer.idx !== bestScripture.idx) {
+                        prayerCandidate = bestPrayer;
+                        scriptureCandidate = bestScripture;
+                    } else {
+                        prayerCandidate = selectedLines[0];
+                        scriptureCandidate = selectedLines[1];
+                    }
+                } else if (prayerLabelIdx !== -1) {
+                    selectedLines.sort((a, b) => Math.abs(a.idx - prayerLabelIdx) - Math.abs(b.idx - prayerLabelIdx));
+                    prayerCandidate = selectedLines[0];
+                    scriptureCandidate = selectedLines[1];
+                } else if (scriptureLabelIdx !== -1) {
+                    selectedLines.sort((a, b) => Math.abs(a.idx - scriptureLabelIdx) - Math.abs(b.idx - scriptureLabelIdx));
+                    scriptureCandidate = selectedLines[0];
+                    prayerCandidate = selectedLines[1];
+                } else {
+                    prayerCandidate = selectedLines[0];
+                    scriptureCandidate = selectedLines[1];
+                }
+            } else if (selectedLines.length === 1) {
+                const single = selectedLines[0];
+                if (prayerLabelIdx !== -1 && scriptureLabelIdx !== -1) {
+                    const distP = Math.abs(single.idx - prayerLabelIdx);
+                    const distS = Math.abs(single.idx - scriptureLabelIdx);
+                    if (distP <= distS) {
+                        prayerCandidate = single;
+                    } else {
+                        scriptureCandidate = single;
+                    }
+                } else if (scriptureLabelIdx !== -1 && Math.abs(single.idx - scriptureLabelIdx) < 3) {
+                    scriptureCandidate = single;
+                } else {
+                    prayerCandidate = single;
+                }
+            }
+
+            if (prayerCandidate) {
+                r7 = prayerCandidate.p1;
+                r8 = prayerCandidate.p2;
+                prayerLineIdx = prayerCandidate.idx;
+            }
+            if (scriptureCandidate) {
+                r10 = scriptureCandidate.p1;
+                r11 = scriptureCandidate.p2;
+                scriptureReaderLineIdx = scriptureCandidate.idx;
+            }
+
+            // =========================================================
+            // [보조 Fallback 코드] 만약 2개 라인이 온전히 잡히지 않았을 경우
+            // =========================================================
+            if (!r7 && !r8 && prayerLabelIdx !== -1 && prayerLabelIdx + 1 < lines.length) {
+                const targetLine = lines[prayerLabelIdx + 1];
                 if (targetLine.includes('1부:')) {
-                    const after1 = targetLine.split('1부:')[1] || '';
-                    r7 = getUntilSlash(after1);
+                    r7 = cleanNameText(getUntilSlash(targetLine.split('1부:')[1] || ''));
                 }
                 if (targetLine.includes('2부:')) {
-                    const after2 = targetLine.split('2부:')[1] || '';
-                    r8 = after2.trim();
+                    r8 = cleanNameText(targetLine.split('2부:')[1] || '');
                 }
             }
 
@@ -1099,44 +1246,30 @@
                 r9LineIndex = lines.findIndex(l => l.includes('성경봉독') || l.includes('성경 봉독'));
             }
 
-            // --- 7번: 성경봉독 담당자 [1부] & 8번: 성경봉독 담당자 [2부] ---
-            // 7번: 9번 출력값의 다음 행 탐색 -> "1부: " 다음에 등장하는 첫 텍스트부터 "/" 텍스트 이전까지
-            // 8번: 7번 출력값과 같은 행에서 "/2부: " 텍스트 탐색 -> 이후 등장하는 첫 텍스트부터 행바꾸기 전까지
-            let r10 = '', r11 = '';
-            let r7_8LineIndex = -1;
-            if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
-                r7_8LineIndex = r9LineIndex + 1;
-            } else if (r7LineIndex !== -1 && r7LineIndex + 2 < lines.length) {
-                r7_8LineIndex = r7LineIndex + 2;
-            }
-
-            if (r7_8LineIndex !== -1 && r7_8LineIndex < lines.length) {
-                const targetLine = lines[r7_8LineIndex];
-                if (targetLine.includes('1부:')) {
-                    const after1 = targetLine.split('1부:')[1] || '';
-                    r10 = getUntilSlash(after1).trim();
-                } else if (targetLine.includes('1부')) {
-                    const after1 = targetLine.split('1부')[1].replace(/^[\s*:]*/, '');
-                    r10 = getUntilSlash(after1).trim();
+            if (!r10 && !r11) {
+                let fallbackIdx = -1;
+                if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
+                    fallbackIdx = r9LineIndex + 1;
+                } else if (prayerLabelIdx !== -1 && prayerLabelIdx + 2 < lines.length) {
+                    fallbackIdx = prayerLabelIdx + 2;
                 }
-
-                if (targetLine.includes('/2부:')) {
-                    r11 = targetLine.split('/2부:')[1].trim();
-                } else if (targetLine.includes('/ 2부:')) {
-                    r11 = targetLine.split('/ 2부:')[1].trim();
-                } else if (targetLine.includes('2부:')) {
-                    r11 = targetLine.split('2부:')[1].trim();
-                } else if (targetLine.includes('2부')) {
-                    r11 = targetLine.split('2부')[1].replace(/^[\s*:]*/, '').trim();
+                if (fallbackIdx !== -1 && fallbackIdx < lines.length) {
+                    const targetLine = lines[fallbackIdx];
+                    if (targetLine.includes('1부:')) {
+                        r10 = cleanNameText(getUntilSlash(targetLine.split('1부:')[1] || ''));
+                    }
+                    if (targetLine.includes('2부:')) {
+                        r11 = cleanNameText(targetLine.split('2부:')[1] || '');
+                    }
+                    scriptureReaderLineIdx = fallbackIdx;
                 }
             }
 
             // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) ---
-            // 1) 8번 출력값 다음 다음행 탐색
-            // 2) 해당 행에 있는 모든 텍스트 출력
             let r12 = '';
-            if (r7_8LineIndex !== -1 && r7_8LineIndex + 2 < lines.length) {
-                r12 = lines[r7_8LineIndex + 2].trim();
+            const baseReaderIdx = (scriptureReaderLineIdx !== -1) ? scriptureReaderLineIdx : (r9LineIndex !== -1 ? r9LineIndex + 1 : -1);
+            if (baseReaderIdx !== -1 && baseReaderIdx + 2 < lines.length) {
+                r12 = lines[baseReaderIdx + 2].trim();
             } else if (r9LineIndex !== -1 && r9LineIndex + 3 < lines.length) {
                 r12 = lines[r9LineIndex + 3].trim();
             }
