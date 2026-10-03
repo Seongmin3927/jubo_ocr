@@ -849,21 +849,22 @@
                 }
             }
 
-            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) 독립 추출 ---
+            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) ---
+            // 1. 9번 출력값이 있는 행의 다음 다음 행 탐색
+            // 2. 해당 행의 모든 텍스트 출력
             let r12 = '';
-            lines.forEach((l) => {
-                const compact = l.replace(/\s+/g, '');
-                if ((compact.includes('두레찬양대') || compact.includes('찬양대') || (compact.includes('찬양') && !compact.includes('찬양*') && !compact.includes('찬양(2부)'))) && !r12) {
-                    if (!l.includes('설교') && !l.includes('성경봉독') && !l.includes('대표기도')) {
-                        const cleaned = l.replace(/.*찬양대?\s*/, '').replace(/.*찬양\s*/, '').replace(/2부.*/, '').replace(/두레찬양대.*/, '').trim();
-                        if (cleaned && cleaned !== '찬양' && cleaned !== '찬양대') {
-                            r12 = cleaned.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
-                        }
-                    }
-                }
-            });
+            let r9LineIndex = -1;
+            if (r9) {
+                r9LineIndex = lines.findIndex(l => l.includes(r9));
+            }
+            if (r9LineIndex === -1) {
+                r9LineIndex = lines.findIndex(l => l.includes('성경봉독') || l.includes('성경 봉독'));
+            }
+            if (r9LineIndex !== -1 && r9LineIndex + 2 < lines.length) {
+                r12 = lines[r9LineIndex + 2].trim();
+            }
 
-            // --- 11번: 설교 제목 (sermonTitle) 독립 추출 ---
+            // --- 11번: 설교 제목 (sermonTitle) ---
             let r13 = '';
             lines.forEach((l) => {
                 const compact = l.replace(/\s+/g, '');
@@ -884,34 +885,42 @@
                 }
             }
 
-            // --- 12번: 설교후 찬양 [1부] & 13번: 설교후 찬양 [2부] 독립 추출 ---
+            // --- 12번: 설교후 찬양 [1부] & 13번: 설교후 찬양 [2부] ---
+            // 12번: 11번 출력값의 다음 다음 다음 행에서 "1부: " 탐색 -> "/" 이전까지 출력
+            // 13번: 12번 동일 행에서 "/ 2부: " 탐색 -> 행바꾸기 전까지 출력
             let r14 = '', r15 = '';
-            const sermonIdxAll = lines.findIndex(l => l.replace(/\s+/g, '').startsWith('설교') || l.includes('설교:'));
-            let praiseLineAfterSermon = null;
-            
-            if (sermonIdxAll !== -1) {
-                praiseLineAfterSermon = lines.slice(sermonIdxAll + 1).find(l => l.includes('찬송') || l.includes('찬양'));
+            let r13LineIndex = -1;
+            if (r13) {
+                r13LineIndex = lines.findIndex(l => l.includes(r13));
             }
-            if (!praiseLineAfterSermon) {
-                praiseLineAfterSermon = lines.find(l => (l.includes('찬송') || l.includes('찬양')) && (l.includes('1부') || l.includes('2부')));
+            if (r13LineIndex === -1) {
+                r13LineIndex = lines.findIndex(l => l.replace(/\s+/g, '').startsWith('설교') && !l.includes('설교자') && !l.includes('설교:'));
             }
 
-            if (praiseLineAfterSermon) {
-                const targetText = praiseLineAfterSermon.replace(/.*찬송\s*/, '').replace(/.*찬양\s*/, '').replace(/다함께.*/, '').trim();
-                
-                const match1 = targetText.match(/1부\s*[:\.]?\s*([^/]+)/);
-                if (match1) {
-                    r14 = match1[1].replace(/다함께.*/, '').trim();
+            let praiseTargetLine = '';
+            if (r13LineIndex !== -1 && r13LineIndex + 3 < lines.length) {
+                praiseTargetLine = lines[r13LineIndex + 3];
+            } else {
+                praiseTargetLine = lines.find((l, idx) => idx > (r13LineIndex !== -1 ? r13LineIndex : 0) && (l.includes('1부:') || l.includes('1부') || l.includes('2부:')));
+            }
+
+            if (praiseTargetLine) {
+                // 12번: "1부: " 다음부터 "/" 이전까지
+                if (praiseTargetLine.includes('1부:')) {
+                    const after1 = praiseTargetLine.split('1부:')[1] || '';
+                    r14 = getUntilSlash(after1).trim();
+                } else if (praiseTargetLine.includes('1부')) {
+                    const after1 = praiseTargetLine.split('1부')[1].replace(/^[\s*:]*/, '');
+                    r14 = getUntilSlash(after1).trim();
                 }
 
-                const match2 = targetText.match(/2부\s*[:\.]?\s*(.+)/);
-                if (match2) {
-                    r15 = match2[1].replace(/다함께.*/, '').trim();
-                }
-
-                if (!r14 && !r15 && targetText) {
-                    r14 = targetText.replace(/다함께.*/, '').replace(/^[;,\/\*\(\)\s:]+/, '').trim();
-                    r15 = r14;
+                // 13번: 동일 행에서 "/ 2부: " 다음부터 행바꾸기 전까지
+                if (praiseTargetLine.includes('2부:')) {
+                    const after2 = praiseTargetLine.split('2부:')[1] || '';
+                    r15 = after2.trim();
+                } else if (praiseTargetLine.includes('2부')) {
+                    const after2 = praiseTargetLine.split('2부')[1].replace(/^[\s*:]*/, '');
+                    r15 = after2.trim();
                 }
             }
 
