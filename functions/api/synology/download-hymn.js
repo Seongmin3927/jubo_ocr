@@ -91,8 +91,8 @@ export async function onRequestGet(context) {
     const sid = loginData.data.sid;
 
     // Step B: 파일 다운로드 요청
-    // NAS 저장 경로: /예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9/새찬송가(3자리장수)장_normal_White.pptx
-    const nasFilePath = `/예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9/새찬송가${hymnNo}장_normal_White.pptx`;
+    // NAS 저장 경로: /예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9/새찬송가(3자리장수)장_normal_White.ppt
+    const nasFilePath = `/예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9/새찬송가${hymnNo}장_normal_White.ppt`;
     const downloadUrl = `${baseUrl}/webapi/entry.cgi?api=SYNO.FileStation.Download&version=2&method=download&path=${encodeURIComponent(nasFilePath)}&mode=download&_sid=${encodeURIComponent(sid)}`;
 
     let downloadRes;
@@ -121,26 +121,26 @@ export async function onRequestGet(context) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: `찬송가 ${parseInt(hymnNo, 10)}장(새찬송가${hymnNo}장_normal_White.pptx) 파일이 시놀로지 NAS에 존재하지 않거나 다운로드할 수 없습니다. [${errorDetail}]`
+          error: `찬송가 ${parseInt(hymnNo, 10)}장(새찬송가${hymnNo}장_normal_White.ppt) 파일이 시놀로지 NAS에 존재하지 않거나 다운로드할 수 없습니다. [${errorDetail}]`
         }),
         { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }
 
-    // Step C: PPTX 바이너리 데이터 수집
-    const pptxBuffer = await downloadRes.arrayBuffer();
+    // Step C: PPT 바이너리 데이터 수집
+    const pptBuffer = await downloadRes.arrayBuffer();
 
     // Step D: 시놀로지 세션 로그아웃 (비동기 완료)
     logoutSynology(baseUrl, sid).catch(() => {});
 
-    const pptxFileName = `새찬송가${hymnNo}장_normal_White.pptx`;
+    const pptFileName = `새찬송가${hymnNo}장_normal_White.ppt`;
 
-    return new Response(pptxBuffer, {
+    return new Response(pptBuffer, {
       status: 200,
       headers: {
         ...corsHeaders,
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'Content-Disposition': `attachment; filename="${pptxFileName}"; filename*=UTF-8''${encodeURIComponent(pptxFileName)}`,
+        'Content-Type': 'application/vnd.ms-powerpoint',
+        'Content-Disposition': `attachment; filename="${pptFileName}"; filename*=UTF-8''${encodeURIComponent(pptFileName)}`,
         'Cache-Control': 'no-cache',
       },
     });
