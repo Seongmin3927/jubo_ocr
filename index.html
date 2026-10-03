@@ -834,85 +834,83 @@
                 }
             }
 
-            // --- 9번: 성경봉독 본문 ---
+            // 66개 성경 책 이름 및 장·절 정규식 패턴
+            const bibleRegex = /(창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록)\s*\d+[\s:장]*\d+(?:\s*[-~]\s*\d+)?/;
+
+            // --- 9번: 성경봉독 본문 (scripturePassage) 독립 추출 ---
             let r9 = '';
-            let r9LineIndex = -1;
-            lines.forEach((l, idx) => {
-                if (l.includes('성경봉독') && r9LineIndex === -1) {
-                    r9LineIndex = idx;
-                    if (idx + 1 < lines.length) {
-                        r9 = lines[idx + 1].trim();
-                    }
-                }
-            });
-
-            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) ---
-            // "성경봉독" 행 이후, "설교" 행 이전에 위치한 "찬양" 행 특정
-            let r12 = '';
-            let r12LineIndex = -1;
-            let sermonLineIndex = lines.findIndex((l, idx) => idx > r9LineIndex && (l.replace(/\s+/g, '').startsWith('설교') || l.includes('설교:')));
-            
-            lines.forEach((l, idx) => {
-                if (idx > r9LineIndex && (sermonLineIndex === -1 || idx < sermonLineIndex)) {
-                    if (l.includes('찬양') && r12LineIndex === -1) {
-                        r12LineIndex = idx;
-                        const cleaned = l.replace(/.*찬양대?\s*/, '').replace(/.*찬양\s*/, '').replace(/2부.*/, '').replace(/두레찬양대.*/, '').trim();
-                        r12 = cleaned.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
-                    }
-                }
-            });
-            if (!r12 && r9LineIndex !== -1 && r9LineIndex + 2 < lines.length) {
-                const cand = lines[r9LineIndex + 2].replace(/.*찬양\s*/, '').trim();
-                r12 = cand.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
-            }
-
-            // --- 11번: 설교 제목 (sermonTitle) ---
-            // 좌측 열이 "설교"인 행 탐색 -> 중앙 열 텍스트 추출 (라벨 "설교" 및 우측 "설교자" 제외)
-            let r13 = '';
-            let r13LineIndex = -1;
-            lines.forEach((l, idx) => {
-                if (idx > r9LineIndex && r13LineIndex === -1) {
-                    const compact = l.replace(/\s+/g, '');
-                    if (compact.startsWith('설교') && !compact.includes('설교자') && !compact.includes('설교:')) {
-                        r13LineIndex = idx;
-                        r13 = l.replace(/^설\s*교\s*/, '').replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
-                    }
-                }
-            });
-            if (!r13 && sermonLineIndex !== -1) {
-                const sLine = lines[sermonLineIndex];
-                r13 = sLine.replace(/.*설교\s*:\s*/, '').replace(/.*설\s*교\s*/, '').replace(/설교자.*/, '').trim();
-            }
-
-            // --- 12번: 설교후 찬양 [1부] & 13번: 설교후 찬양 [2부] ---
-            // "설교" 행 바로 다음 순서인 좌측 열 "찬송" 행 탐색 ➔ 1부 / 2부 정규식 분리
-            let r14 = '', r15 = '';
-            let lineR14 = null;
-
-            if (r13LineIndex !== -1) {
-                lineR14 = lines.slice(r13LineIndex + 1).find(l => l.includes('찬송') || l.includes('찬양'));
+            const bibleMatch = rawText.match(bibleRegex);
+            if (bibleMatch) {
+                r9 = bibleMatch[0].trim();
             } else {
-                lineR14 = lines.find((l, idx) => idx > r9LineIndex && (l.includes('찬송') || l.includes('찬양')) && (l.includes('1부') || l.includes('2부')));
+                const lineScripture = lines.find(l => l.includes('성경봉독') || l.includes('성경 봉독'));
+                if (lineScripture) {
+                    r9 = lineScripture.replace(/.*성경\s*봉독\s*/, '').replace(/1부.*/, '').trim();
+                }
             }
 
-            if (lineR14) {
-                const targetText = lineR14.replace(/.*찬송\s*/, '').replace(/.*찬양\s*/, '').replace(/다함께.*/, '').trim();
+            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) 독립 추출 ---
+            let r12 = '';
+            lines.forEach((l) => {
+                const compact = l.replace(/\s+/g, '');
+                if ((compact.includes('두레찬양대') || compact.includes('찬양대') || (compact.includes('찬양') && !compact.includes('찬양*') && !compact.includes('찬양(2부)'))) && !r12) {
+                    if (!l.includes('설교') && !l.includes('성경봉독') && !l.includes('대표기도')) {
+                        const cleaned = l.replace(/.*찬양대?\s*/, '').replace(/.*찬양\s*/, '').replace(/2부.*/, '').replace(/두레찬양대.*/, '').trim();
+                        if (cleaned && cleaned !== '찬양' && cleaned !== '찬양대') {
+                            r12 = cleaned.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
+                        }
+                    }
+                }
+            });
+
+            // --- 11번: 설교 제목 (sermonTitle) 독립 추출 ---
+            let r13 = '';
+            lines.forEach((l) => {
+                const compact = l.replace(/\s+/g, '');
+                if (compact.startsWith('설교') && !compact.includes('설교자') && !compact.includes('설교:') && !r13) {
+                    const candidate = l.replace(/^설\s*교\s*/, '').replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
+                    if (candidate && candidate !== '설교') {
+                        r13 = candidate;
+                    }
+                }
+            });
+            if (!r13) {
+                const mTitle = rawText.match(/설\s*교\s+([^\n]+)/);
+                if (mTitle) {
+                    const cand = mTitle[1].replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
+                    if (cand && cand !== '설교') {
+                        r13 = cand;
+                    }
+                }
+            }
+
+            // --- 12번: 설교후 찬양 [1부] & 13번: 설교후 찬양 [2부] 독립 추출 ---
+            let r14 = '', r15 = '';
+            const sermonIdxAll = lines.findIndex(l => l.replace(/\s+/g, '').startsWith('설교') || l.includes('설교:'));
+            let praiseLineAfterSermon = null;
+            
+            if (sermonIdxAll !== -1) {
+                praiseLineAfterSermon = lines.slice(sermonIdxAll + 1).find(l => l.includes('찬송') || l.includes('찬양'));
+            }
+            if (!praiseLineAfterSermon) {
+                praiseLineAfterSermon = lines.find(l => (l.includes('찬송') || l.includes('찬양')) && (l.includes('1부') || l.includes('2부')));
+            }
+
+            if (praiseLineAfterSermon) {
+                const targetText = praiseLineAfterSermon.replace(/.*찬송\s*/, '').replace(/.*찬양\s*/, '').replace(/다함께.*/, '').trim();
                 
-                // 1부 패턴 파싱
-                const match1 = targetText.match(/1부\s*:\s*([^/]+)/) || targetText.match(/1부\s+([^/]+)/);
+                const match1 = targetText.match(/1부\s*[:\.]?\s*([^/]+)/);
                 if (match1) {
-                    r14 = match1[1].trim();
+                    r14 = match1[1].replace(/다함께.*/, '').trim();
                 }
 
-                // 2부 패턴 파싱
-                const match2 = targetText.match(/2부\s*:\s*(.+)/) || targetText.match(/2부\s+(.+)/);
+                const match2 = targetText.match(/2부\s*[:\.]?\s*(.+)/);
                 if (match2) {
-                    r15 = match2[1].trim();
+                    r15 = match2[1].replace(/다함께.*/, '').trim();
                 }
 
-                // 단일 곡명 예외 처리
                 if (!r14 && !r15 && targetText) {
-                    r14 = targetText.replace(/^[;,\/\*\(\)\s:]+/, '').trim();
+                    r14 = targetText.replace(/다함께.*/, '').replace(/^[;,\/\*\(\)\s:]+/, '').trim();
                     r15 = r14;
                 }
             }
