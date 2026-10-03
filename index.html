@@ -8,395 +8,1379 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --primary-light: #eff6ff;
+            --success: #059669;
+            --success-light: #ecfdf5;
+            --warning: #d97706;
+            --warning-light: #fffbeb;
+            --purple: #9333ea;
+            --purple-light: #faf5ff;
+            --orange: #ea580c;
+            --orange-light: #fff7ed;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body { 
-            font-family: 'Segoe UI', Pretendard, Tahoma, Geneva, Verdana, sans-serif; 
-            padding: 30px 15px; 
-            background-color: #f9f9f9; 
-            color: #333; 
-            max-width: 850px; 
-            margin: 0 auto; 
+            font-family: -apple-system, BlinkMacSystemFont, "Pretendard Variable", Pretendard, "Segoe UI", Roboto, sans-serif;
+            padding: 30px 16px 60px 16px;
+            background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 50%, #f1f5f9 100%);
+            color: var(--gray-800);
+            min-height: 100vh;
             line-height: 1.6;
         }
-        h1 { text-align: center; color: #2c3e50; font-size: 1.8rem; margin-bottom: 8px; }
-        .sub-header { text-align: center; color: #7f8c8d; font-size: 0.95rem; margin-bottom: 25px; }
 
-        .upload-section { 
-            background: white; 
-            padding: 30px 25px; 
-            border-radius: 10px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.08); 
-            text-align: center; 
-            margin-bottom: 20px; 
-            border: 2px dashed #03c75a;
-            transition: all 0.2s ease-in-out;
+        .app-wrapper {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        /* App Top Brand Header */
+        .app-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .brand-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--gray-900);
+            letter-spacing: -0.02em;
+            margin-bottom: 6px;
+        }
+        .brand-subtitle {
+            font-size: 0.95rem;
+            color: var(--gray-600);
+        }
+
+        /* Modern Stepper Indicator Card */
+        .stepper-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 18px;
+            padding: 16px 28px;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+            margin-bottom: 24px;
+        }
+        .stepper-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
             cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
         }
-        .upload-section.drag-over {
-            background: #eefbf3;
-            border-color: #02b350;
-            box-shadow: 0 6px 12px rgba(3, 199, 90, 0.2);
+        .stepper-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            background: var(--gray-100);
+            color: var(--gray-400);
+            border: 2px solid var(--gray-200);
+            transition: all 0.25s ease;
         }
-        #imageInput { display: none; }
-        #preview { 
-            max-width: 100%; 
-            max-height: 300px; 
-            margin-top: 15px; 
-            display: none; 
-            border-radius: 4px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        .stepper-item .step-check {
+            display: none;
         }
-        .status-box { 
-            font-weight: bold; 
-            color: #3498db; 
-            margin: 15px 0; 
-            min-height: 24px; 
+        .stepper-item.active .stepper-icon {
+            background: var(--primary);
+            color: #ffffff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.22);
         }
-        
-        .result-section, .parsed-section { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        .stepper-item.completed .stepper-icon {
+            background: var(--success);
+            color: #ffffff;
+            border-color: var(--success);
+        }
+        .stepper-item.completed .step-num {
+            display: none;
+        }
+        .stepper-item.completed .step-check {
+            display: inline-block;
+        }
+        .stepper-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .stepper-step {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--gray-400);
+            letter-spacing: 0.04em;
+        }
+        .stepper-label {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--gray-700);
+            transition: color 0.2s;
+        }
+        .stepper-item.active .stepper-label {
+            color: var(--primary);
+        }
+        .stepper-item.completed .stepper-label {
+            color: var(--gray-800);
+        }
+        .stepper-line {
+            flex: 1;
+            height: 3px;
+            background: var(--gray-200);
+            margin: 0 16px;
+            border-radius: 2px;
+            transition: background 0.3s ease;
+        }
+        .stepper-line.active {
+            background: linear-gradient(90deg, var(--primary), var(--primary-hover));
+        }
+
+        /* Wizard Step Views (Transitions) */
+        .wizard-step {
+            display: none;
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        .wizard-step.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Glassmorphic Wizard Card */
+        .wizard-card {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(226, 232, 240, 0.85);
+            border-radius: 20px;
+            padding: 32px 28px;
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
         }
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
-        }
-        .result-header h3 {
-            margin: 0;
-            color: #2c3e50;
-            font-size: 1.15rem;
-        }
-        textarea { 
-            width: 100%; 
-            height: 180px; 
-            padding: 12px; 
-            border: 1px solid #ddd; 
-            border-radius: 4px; 
-            resize: vertical; 
-            box-sizing: border-box; 
-            font-family: inherit; 
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-        
-        button { 
-            background-color: #03c75a; /* Naver Green Color */
-            color: white; 
-            border: none; 
-            padding: 12px 20px; 
-            font-size: 16px; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            transition: background 0.2s; 
-            width: 100%; 
-            font-weight: bold; 
-        }
-        button:hover { background-color: #02b350; }
-        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
 
-        .btn-copy {
-            background-color: #3498db;
+        .text-center { text-align: center; }
+
+        .card-hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 14px;
+            border-radius: 20px;
+            background: var(--primary-light);
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        .card-hero-title {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--gray-900);
+            letter-spacing: -0.01em;
+            margin-bottom: 8px;
+        }
+        .card-hero-desc {
+            font-size: 0.95rem;
+            color: var(--gray-600);
+            margin-bottom: 24px;
+        }
+
+        /* Step 1: Upload Dropzone */
+        .upload-dropzone {
+            padding: 40px 24px;
+            border: 2.5px dashed #93c5fd;
+            border-radius: 18px;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            margin: 15px 0 25px 0;
+            text-align: center;
+        }
+        .upload-dropzone:hover, .upload-dropzone.drag-over {
+            background: #eff6ff;
+            border-color: var(--primary);
+            transform: scale(1.01);
+            box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.12);
+        }
+        .dropzone-icon-ring {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: #dbeafe;
+            color: var(--primary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 16px;
+            transition: transform 0.2s;
+        }
+        .upload-dropzone:hover .dropzone-icon-ring {
+            transform: translateY(-3px) scale(1.05);
+        }
+        .dropzone-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 6px;
+        }
+        .dropzone-subtitle {
+            font-size: 0.88rem;
+            color: var(--gray-400);
+        }
+
+        #imageInput { display: none; }
+
+        /* File Preview Box in Dropzone */
+        .preview-badge-row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .preview-badge {
+            background: #e2e8f0;
+            color: var(--gray-700);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #preview {
+            max-width: 100%;
+            max-height: 280px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 12px;
+            object-fit: contain;
+        }
+        .btn-change-image {
+            background: white;
+            border: 1px solid var(--gray-300);
+            color: var(--gray-700);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-change-image:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+
+        /* Shimmer Loading Skeleton */
+        .skeleton-loading-box {
+            background: #ffffff;
+            border: 1px solid #bfdbfe;
+            border-radius: 14px;
+            padding: 24px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .skeleton-pulse-ring {
+            font-size: 2.2rem;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+        .skeleton-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 16px;
+        }
+        .skeleton-bars {
+            max-width: 450px;
+            margin: 0 auto;
+        }
+        .skeleton-bar {
+            height: 12px;
+            border-radius: 6px;
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            margin: 8px auto;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .status-box {
+            font-weight: 600;
+            color: var(--primary);
+            margin: 14px 0;
+            font-size: 0.95rem;
+            min-height: 24px;
+        }
+
+        .btn-primary-cta {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
             color: white;
             border: none;
-            padding: 6px 14px;
-            font-size: 0.85rem;
-            border-radius: 4px;
+            padding: 16px 28px;
+            font-size: 1.05rem;
+            border-radius: 12px;
             cursor: pointer;
-            width: auto;
+            width: 100%;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+            transition: all 0.2s ease;
         }
-        .btn-copy:hover { background-color: #2980b9; }
+        .btn-primary-cta:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+        }
+        .btn-primary-cta:disabled {
+            background: #cbd5e1;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
 
-        /* 주일 구분 판별 배너 스타일 */
+        /* Step 2: Sunday Type Banner */
         .sunday-type-banner {
-            background: #eef6ff;
-            border: 2px solid #3498db;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
+            background: #eff6ff;
+            border: 1.5px solid #bfdbfe;
+            border-radius: 14px;
+            padding: 14px 20px;
+            margin-bottom: 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 15px;
         }
         .sunday-type-banner.together-sunday {
-            background: #fff8e7;
-            border-color: #f39c12;
+            background: #fffbeb;
+            border-color: #fde68a;
         }
         .sunday-type-title {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #2c3e50;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--gray-800);
             display: flex;
             align-items: center;
             gap: 8px;
         }
         .sunday-badge {
             display: inline-block;
-            padding: 4px 12px;
+            padding: 4px 14px;
             border-radius: 20px;
-            font-size: 0.95rem;
-            font-weight: bold;
+            font-size: 0.9rem;
+            font-weight: 700;
             color: white;
-            background: #3498db;
+            background: var(--primary);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
         }
         .sunday-type-banner.together-sunday .sunday-badge {
-            background: #e67e22;
+            background: #d97706;
+            box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);
         }
         .sunday-type-desc {
             font-size: 0.85rem;
-            color: #7f8c8d;
+            color: var(--gray-600);
         }
 
-        .rule-list {
+        .step-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .section-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--gray-900);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-subtitle {
+            font-size: 0.88rem;
+            color: var(--gray-600);
+            margin-top: 4px;
+        }
+        .btn-secondary-action {
+            background: #ffffff;
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+            padding: 8px 16px;
+            font-size: 0.88rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-secondary-action:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-400);
+        }
+
+        /* Step 2: 4 Grouped Forms Grid */
+        .grouped-forms-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 768px) {
+            .grouped-forms-grid { grid-template-columns: 1fr; }
+        }
+        .group-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            margin-top: 15px;
         }
-        .rule-item {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
+        .group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            border-bottom: 1.5px solid #f1f5f9;
+        }
+        .group-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+        .group-icon {
+            color: var(--primary);
+        }
+        .group-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 2px 8px;
             border-radius: 6px;
-            padding: 10px 14px;
+            background: var(--gray-100);
+            color: var(--gray-600);
+        }
+        .group-fields-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .form-field-group {
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
-        .rule-title {
+        .form-field-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
             font-size: 0.85rem;
-            font-weight: 700;
-            color: #495057;
+            font-weight: 600;
+            color: var(--gray-600);
         }
-        .rule-value {
+        .field-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: var(--gray-700);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .field-name { font-weight: 600; color: var(--gray-800); }
+        .field-tag { font-size: 0.78rem; color: var(--gray-400); }
+        .form-field-group input {
+            width: 100%;
+            padding: 9px 13px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #1e40af;
+            background: #f8fafc;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .form-field-group input:focus {
+            border-color: var(--primary);
+            background: #ffffff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        /* Collapsible Raw OCR Details */
+        .raw-ocr-details {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 24px;
+        }
+        .raw-ocr-summary {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--gray-700);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .btn-mini-copy {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: var(--gray-700);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            cursor: pointer;
+        }
+        .raw-ocr-details textarea {
+            margin-top: 12px;
+            width: 100%;
+            height: 140px;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            background: #f8fafc;
+            resize: vertical;
+        }
+
+        /* Bottom Step Action Bar */
+        .step-action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 20px;
+            border-top: 1.5px solid #e2e8f0;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .btn-nav-back {
+            background: #ffffff;
+            color: var(--gray-700);
+            border: 1px solid #cbd5e1;
+            padding: 12px 22px;
+            border-radius: 10px;
             font-size: 0.95rem;
             font-weight: 600;
-            color: #1864ab;
-            background: #e7f5ff;
-            padding: 6px 10px;
-            border-radius: 4px;
-            border: 1px solid #a5d8ff;
-            word-break: break-all;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn-nav-back:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+        .btn-nav-next {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+            transition: all 0.2s;
+        }
+        .btn-nav-next:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+        }
+
+        /* Step 3: Hub Cards Grid */
+        .hub-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 900px) {
+            .hub-cards-grid { grid-template-columns: 1fr; }
+        }
+        .hub-card {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 22px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+            transition: all 0.25s ease;
+        }
+        .hub-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.07);
+        }
+        .hub-card-orange { border-top: 5px solid #ea580c; }
+        .hub-card-purple { border-top: 5px solid #9333ea; }
+        .hub-card-green { border-top: 5px solid #059669; }
+
+        .hub-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .hub-card-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+        .hub-card-orange .hub-card-icon { background: #ffedd5; color: #ea580c; }
+        .hub-card-purple .hub-card-icon { background: #f3e8ff; color: #9333ea; }
+        .hub-card-green .hub-card-icon { background: #d1fae5; color: #059669; }
+
+        .hub-card-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--gray-900);
+        }
+        .hub-card-tag {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--gray-400);
+        }
+        .hub-card-desc {
+            font-size: 0.85rem;
+            color: var(--gray-600);
+            margin-bottom: 16px;
+            line-height: 1.5;
+            min-height: 42px;
+        }
+
+        .hub-card-meta {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 14px;
+            font-size: 0.82rem;
+            color: var(--gray-700);
+        }
+        .hub-meta-item { margin-bottom: 4px; }
+        .hub-meta-item:last-child { margin-bottom: 0; }
+
+        .hub-template-box, .hub-bible-passage-box {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 16px;
+            font-size: 0.82rem;
+        }
+        .hub-template-box label, .hub-bible-passage-box label {
+            font-weight: 700;
+            color: var(--gray-700);
+            display: block;
+            margin-bottom: 6px;
+        }
+        .hub-template-status {
+            font-size: 0.78rem;
+            color: var(--success);
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .hub-hymn-list-box {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 16px;
+        }
+        .hub-hymn-list-box label {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--gray-700);
+            display: block;
+            margin-bottom: 6px;
+        }
+        .hymn-badges-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+            min-height: 28px;
+        }
+        .hymn-badge {
+            background: #f3e8ff;
+            color: #7e22ce;
+            border: 1px solid #d8b4fe;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .hub-add-hymn-row {
+            display: flex;
+            gap: 6px;
+        }
+        .hub-add-hymn-row input {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.82rem;
+        }
+        .hub-add-hymn-row button {
+            background: #9333ea;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        #biblePassageInput {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #047857;
+        }
+        .hub-verses-preview {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 16px;
+        }
+        .hub-verses-preview label {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--gray-700);
+            display: block;
+            margin-bottom: 6px;
+        }
+        .bible-preview-scroll {
+            max-height: 100px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 0.8rem;
+            color: var(--gray-600);
+        }
+
+        .btn-hub-download {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn-hub-download:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+        .btn-hub-download:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-orange { background: linear-gradient(135deg, #ea580c, #c2410c); box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3); }
+        .btn-purple { background: linear-gradient(135deg, #9333ea, #7e22ce); box-shadow: 0 4px 12px rgba(147, 51, 234, 0.3); }
+        .btn-green  { background: linear-gradient(135deg, #059669, #047857); box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); }
+
+        .btn-reset-work {
+            background: #fff;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s;
+        }
+        .btn-reset-work:hover {
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
+
+        /* Modal Dialog */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .modal-card {
+            background: white;
+            border-radius: 18px;
+            padding: 26px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .modal-icon {
+            font-size: 2.2rem;
+            color: #f59e0b;
+            margin-bottom: 12px;
+        }
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+        }
+        .modal-message {
+            font-size: 0.9rem;
+            color: var(--gray-600);
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-modal-cancel {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            background: #f1f5f9;
+            color: var(--gray-700);
+            border: 1px solid #cbd5e1;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-modal-confirm {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
         }
 
         .toast {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #2ecc71;
+            bottom: 24px;
+            right: 24px;
+            background: #0f172a;
             color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            font-weight: bold;
-            display: none;
-            z-index: 1000;
-        }
-
-        /* PPTX Review Form Grid Styles */
-        .pptx-form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-        @media (max-width: 650px) {
-            .pptx-form-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        .pptx-form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .pptx-form-group label {
-            font-size: 0.85rem;
-            font-weight: bold;
-            color: #495057;
-        }
-        .pptx-form-group input {
-            padding: 8px 12px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            font-size: 0.95rem;
-            color: #1864ab;
-            background: #f8f9fa;
+            padding: 12px 22px;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.25);
             font-weight: 600;
-        }
-        .pptx-form-group input:focus {
-            border-color: #d35400;
-            background: #ffffff;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(211, 84, 0, 0.2);
-        }
-
-        .hymn-badge {
-            background: #f3e5f5;
-            color: #7b1fa2;
-            border: 1px solid #ce93d8;
-            padding: 6px 12px;
-            border-radius: 20px;
             font-size: 0.9rem;
-            font-weight: bold;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+            display: none;
+            z-index: 2000;
         }
     </style>
 </head>
 <body>
 
-    <h1>두레교회 주일 방송팀 작업</h1>
-    <p class="sub-header">주보 OCR 텍스트 분석, 자막 PPTX 자동 생성 및 찬송가/성경 PPT 통합 시스템</p>
-    
-    <div class="upload-section" id="uploadDropZone">
-        <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2.8rem; color: #03c75a; margin-bottom: 10px;"></i>
-        <p style="font-size: 1.05rem; color: #2c3e50; margin: 0 0 6px 0;"><strong>주보 이미지 파일(PNG, JPG, WEBP)을 여기에 드래그하거나 클릭하여 선택하세요.</strong></p>
-        <p style="font-size: 0.85rem; color: #7f8c8d; margin: 0 0 12px 0;">파일을 이 영역에 끌어다 놓으시면 자동으로 업로드됩니다.</p>
-        <input type="file" id="imageInput" accept="image/*">
-        <div>
-            <img id="preview" alt="업로드 이미지 미리보기">
+<div class="app-wrapper">
+
+    <!-- Top App Brand Header -->
+    <header class="app-header">
+        <div class="brand-badge"><i class="fa-solid fa-tv"></i> 방송팀 원클릭 솔루션</div>
+        <h1 class="brand-title">두레교회 주일 방송팀 작업</h1>
+        <p class="brand-subtitle">주보 이미지 한 장으로 자막 PPTX, 찬송가 PPT, 성경봉독 PPTX를 자동 완성합니다.</p>
+    </header>
+
+    <!-- 3-Step Progress Stepper -->
+    <div class="stepper-card">
+        <div class="stepper-item active" id="stepIndicator1" onclick="if(canNavigateTo(1)) setStep(1)">
+            <div class="stepper-icon">
+                <span class="step-num">1</span>
+                <i class="fa-solid fa-check step-check"></i>
+            </div>
+            <div class="stepper-info">
+                <span class="stepper-step">STEP 1</span>
+                <span class="stepper-label">주보 업로드</span>
+            </div>
         </div>
-        <div id="status" class="status-box">이미지를 선택하거나 드래그해 주세요.</div>
-        <button id="extractBtn" disabled><i class="fa-solid fa-bolt"></i> CLOVA OCR 텍스트 추출 & 주보 분석</button>
+        <div class="stepper-line" id="stepLine1"></div>
+        <div class="stepper-item" id="stepIndicator2" onclick="if(canNavigateTo(2)) setStep(2)">
+            <div class="stepper-icon">
+                <span class="step-num">2</span>
+                <i class="fa-solid fa-check step-check"></i>
+            </div>
+            <div class="stepper-info">
+                <span class="stepper-step">STEP 2</span>
+                <span class="stepper-label">데이터 검수</span>
+            </div>
+        </div>
+        <div class="stepper-line" id="stepLine2"></div>
+        <div class="stepper-item" id="stepIndicator3" onclick="if(canNavigateTo(3)) setStep(3)">
+            <div class="stepper-icon">
+                <span class="step-num">3</span>
+                <i class="fa-solid fa-check step-check"></i>
+            </div>
+            <div class="stepper-info">
+                <span class="stepper-step">STEP 3</span>
+                <span class="stepper-label">자막·자료 생성</span>
+            </div>
+        </div>
     </div>
 
-    <!-- 1. OCR 원본 텍스트 추출 결과 -->
-    <div class="result-section">
-        <div class="result-header">
-            <h3><i class="fa-solid fa-file-lines"></i> [1. CLOVA OCR 원본 추출 결과]</h3>
-            <button id="copyBtn" class="btn-copy" style="display: none;"><i class="fa-solid fa-copy"></i> 원본 텍스트 복사</button>
+    <!-- ============================================== -->
+    <!-- STEP 1: 주보 이미지 업로드 화면 -->
+    <!-- ============================================== -->
+    <div id="step1View" class="wizard-step active">
+        <div class="wizard-card text-center">
+            <div class="card-hero-badge"><i class="fa-solid fa-cloud-arrow-up"></i> STEP 1: 파일 업로드</div>
+            <h2 class="card-hero-title">주일 주보 이미지를 등록해주세요</h2>
+            <p class="card-hero-desc">주보 사진 또는 스캔 이미지(PNG, JPG, WEBP)를 올리시면 AI가 예배 순서 및 13가지 항목을 자동 추출합니다.</p>
+
+            <div class="upload-dropzone" id="uploadDropZone">
+                <input type="file" id="imageInput" accept="image/*">
+                
+                <div id="dropzonePrompt">
+                    <div class="dropzone-icon-ring">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <h3 class="dropzone-title">주보 이미지를 여기에 드래그하거나 클릭하여 선택하세요</h3>
+                    <p class="dropzone-subtitle">PNG, JPG, JPEG, WEBP 형식 지원 (최대 20MB)</p>
+                </div>
+
+                <!-- Selected File Preview Container -->
+                <div id="filePreviewContainer" style="display: none;">
+                    <div class="preview-badge-row">
+                        <span id="fileNameBadge" class="preview-badge"><i class="fa-regular fa-file-image"></i> 파일명</span>
+                        <span id="fileSizeBadge" class="preview-badge"><i class="fa-solid fa-hard-drive"></i> 크기</span>
+                    </div>
+                    <div>
+                        <img id="preview" alt="업로드 이미지 미리보기">
+                    </div>
+                    <button type="button" class="btn-change-image" id="changeImageBtn" onclick="event.stopPropagation(); imageInput.click();">
+                        <i class="fa-solid fa-arrow-rotate-right"></i> 다른 이미지 선택
+                    </button>
+                </div>
+            </div>
+
+            <!-- OCR Loading Skeleton Shimmer -->
+            <div id="ocrSkeletonLoading" class="skeleton-loading-box" style="display: none;">
+                <div class="skeleton-pulse-ring"><i class="fa-solid fa-robot fa-bounce"></i></div>
+                <div class="skeleton-title">CLOVA OCR AI 모델이 주보를 정밀 분석하고 있습니다...</div>
+                <div class="skeleton-bars">
+                    <div class="skeleton-bar" style="width: 85%;"></div>
+                    <div class="skeleton-bar" style="width: 70%;"></div>
+                    <div class="skeleton-bar" style="width: 90%;"></div>
+                </div>
+            </div>
+
+            <div id="status" class="status-box">이미지를 선택하거나 드래그해 주세요.</div>
+
+            <button id="extractBtn" class="btn-primary-cta" disabled>
+                <i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>
+            </button>
         </div>
-        <textarea id="resultText" placeholder="추출된 원본 텍스트가 여기에 표시됩니다. 바로 수정 후 13가지 정보를 다시 추출할 수 있습니다." readonly></textarea>
     </div>
 
-    <!-- 2. 13가지 지정 추출 정보 및 주일 구분 -->
-    <div class="parsed-section" id="parsedSection" style="display: none;">
-        
-        <!-- 주일 구분 판단 배너 -->
-        <div class="sunday-type-banner" id="sundayTypeBanner">
-            <div class="sunday-type-title">
-                <i class="fa-solid fa-church"></i> 주일 구분: 
-                <span class="sunday-badge" id="sundayBadge">일반 주일</span>
-            </div>
-            <div class="sunday-type-desc" id="sundayDesc">제목 위치 텍스트 판별 중...</div>
-        </div>
-
-        <div class="result-header">
-            <h3><i class="fa-solid fa-list-check"></i> [2. 13가지 지정 추출 정보]</h3>
-            <button id="copy15Btn" class="btn-copy"><i class="fa-solid fa-copy"></i> 13가지 결과 전체 복사</button>
-        </div>
-        <div class="rule-list" id="ruleList">
-        </div>
-    </div>
-
-    <!-- 3. 주일예배자막 PPTX 자동 생성 및 검토 폼 -->
-    <div class="parsed-section" id="pptxSection" style="display: none; border-top: 4px solid #d35400;">
-        <div class="result-header">
-            <h3><i class="fa-solid fa-file-powerpoint" style="color: #d35400;"></i> [3. 주일예배자막 PPTX 자동 생성 & 검토]</h3>
-        </div>
-
-        <div style="background: #fdfefe; border: 1px solid #d6dbdf; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 8px; color: #2c3e50;">
-                <i class="fa-solid fa-folder-open"></i> PPTX 템플릿 선택
-            </div>
-            <div style="font-size: 0.9rem; color: #566573; margin-bottom: 10px;">
-                기본 템플릿(<code>templates/주일예배자막양식.pptx</code>)을 사용하거나 커스텀 템플릿 파일(.pptx)을 지정할 수 있습니다.
-            </div>
-            <input type="file" id="templateFileInput" accept=".pptx" style="font-size: 0.9rem;">
-            <span id="templateStatus" style="margin-left: 10px; font-size: 0.85rem; color: #27ae60; font-weight: bold;">
-                <i class="fa-solid fa-circle-check"></i> 기본 템플릿 사용 준비됨
-            </span>
-        </div>
-
-        <div style="font-weight: bold; margin-bottom: 12px; color: #2c3e50;">
-            <i class="fa-solid fa-pen-to-square"></i> 치환 데이터 검토 및 수정 (1번 ~ 13번)
-        </div>
-        <div class="pptx-form-grid" id="pptxFormGrid">
-        </div>
-
-        <button id="downloadPptxBtn" style="background-color: #d35400; font-size: 1.1rem; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px;">
-            <i class="fa-solid fa-file-arrow-down" style="font-size: 1.3rem;"></i> 
-            <span>자막 PPTX 생성 및 다운로드</span>
-        </button>
-    </div>
-
-    <!-- 4. 감지된 찬송가 PPT 자동 다운로드 섹션 -->
-    <div class="parsed-section" id="hymnSection" style="display: none; border-top: 4px solid #8e44ad;">
-        <div class="result-header">
-            <h3><i class="fa-solid fa-music" style="color: #8e44ad;"></i> [4. 감지된 찬송가 PPT 다운로드 (시놀로지 NAS)]</h3>
-        </div>
-
-        <div style="background: #fcf8ff; border: 1px solid #e8daef; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 8px; color: #2c3e50; display: flex; justify-content: space-between; align-items: center;">
-                <span><i class="fa-solid fa-record-vinyl" style="color: #8e44ad;"></i> 감지 및 편집된 찬송가 목록</span>
-            </div>
-            <div style="font-size: 0.88rem; color: #6c757d; margin-bottom: 12px;">
-                시놀로지 NAS 서버(<code>/예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9</code>) 경로에서 3자리 장수(<code>003</code>, <code>050</code>, <code>191</code> 등) PPT 파일(<code>.ppt</code>)을 개별 다운로드합니다. 항목을 직접 추가하거나 삭제(✕)할 수 있습니다.
-            </div>
-            <div id="hymnListBadges" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
-            </div>
-
-            <div style="display: flex; gap: 8px; align-items: center; background: #fff; padding: 10px; border: 1px solid #e1d5e7; border-radius: 6px;">
-                <label for="manualHymnInput" style="font-size: 0.88rem; font-weight: bold; color: #6a1b9a;">찬송가 추가:</label>
-                <input type="number" id="manualHymnInput" min="1" max="645" placeholder="예: 3 또는 187" style="width: 150px; padding: 6px 10px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem;">
-                <button id="addManualHymnBtn" class="btn-copy" style="background-color: #8e44ad; font-size: 0.85rem; padding: 6px 14px;"><i class="fa-solid fa-plus"></i> 찬송가 추가</button>
-            </div>
-        </div>
-
-        <button id="downloadHymnsBtn" style="background-color: #8e44ad; font-size: 1.1rem; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <i class="fa-solid fa-file-arrow-down" style="font-size: 1.3rem;"></i> 
-            <span>찬송가 PPT 다운로드</span>
-        </button>
-    </div>
-
-    <!-- 5. 성경봉독 자막 PPTX 자동 생성 섹션 (biblereferenceppt 연동) -->
-    <div class="parsed-section" id="biblePptSection" style="display: none; border-top: 4px solid #27ae60;">
-        <div class="result-header">
-            <h3><i class="fa-solid fa-book-bible" style="color: #27ae60;"></i> [5. 성경봉독 자막 PPTX 자동 생성]</h3>
-        </div>
-
-        <div style="background: #f4fbf7; border: 1px solid #d5f5e3; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 8px; color: #2c3e50;">
-                <i class="fa-solid fa-file-signature" style="color: #27ae60;"></i> 성경봉독 본문 지정 (9번 항목 기반)
-            </div>
-            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
-                <input type="text" id="biblePassageInput" placeholder="예: 요한복음 16:5-7 또는 시편 23:1-6" style="flex: 1; padding: 10px; border: 1px solid #ced4da; border-radius: 4px; font-weight: bold; color: #1e8449;">
-            </div>
+    <!-- ============================================== -->
+    <!-- STEP 2: 추출 데이터 검수 & 수정 화면 -->
+    <!-- ============================================== -->
+    <div id="step2View" class="wizard-step">
+        <div class="wizard-card">
             
-            <div style="font-weight: bold; margin-bottom: 6px; font-size: 0.9rem; color: #34495e;">
-                <i class="fa-solid fa-folder-open"></i> PPTX 템플릿 선택 (기본: 성경봉독자막양식.pptx)
+            <!-- 상단 스마트 주일 판정 결과 뱃지 -->
+            <div class="sunday-type-banner" id="sundayTypeBanner">
+                <div class="sunday-type-title">
+                    <i class="fa-solid fa-church"></i> 주일 구분: 
+                    <span class="sunday-badge" id="sundayBadge">일반 주일</span>
+                </div>
+                <div class="sunday-type-desc" id="sundayDesc">제목 위치 텍스트 판별 중...</div>
             </div>
-            <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 6px;">
-                업로드해주신 기본 템플릿(<code>templates/성경봉독자막양식.pptx</code>)을 기본으로 사용하며 커스텀 템플릿 파일(.pptx)을 지정할 수도 있습니다.
-            </div>
-            <input type="file" id="bibleTemplateFileInput" accept=".pptx" style="font-size: 0.88rem;">
-            <span id="bibleTemplateStatus" style="font-size: 0.85rem; color: #27ae60; font-weight: bold; display: block; margin-top: 6px; margin-bottom: 15px;">
-                <i class="fa-solid fa-circle-check"></i> 기본 성경자막 템플릿(성경봉독자막양식.pptx) 사용 준비됨
-            </span>
 
-            <div style="font-weight: bold; margin-top: 10px; margin-bottom: 8px; color: #2c3e50; font-size: 0.9rem;">
-                <i class="fa-solid fa-list-ol"></i> 추출된 성경 구절 미리보기
+            <div class="step-section-header">
+                <div>
+                    <h2 class="section-title"><i class="fa-solid fa-pen-to-square"></i> 주보 추출 데이터 검수 및 수정</h2>
+                    <p class="section-subtitle">AI가 분석한 항목별 내용을 확인하고 필요한 경우 직접 편집해주세요. 수정 내용은 자막 생성 시 즉시 반영됩니다.</p>
+                </div>
+                <button id="copy15Btn" class="btn-secondary-action"><i class="fa-solid fa-copy"></i> 전체 텍스트 복사</button>
             </div>
-            <div id="biblePreviewList" style="max-height: 200px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px; font-size: 0.9rem;">
-                <span style="color: #9ca3af;">성경 구절 정보를 분석 중입니다...</span>
+
+            <!-- 4개 그룹별 인라인 편집 폼 컨테이너 -->
+            <div id="groupedFormsContainer" class="grouped-forms-grid">
+                <!-- Group A, B, C, D 카드가 동적으로 렌더링됩니다 -->
+            </div>
+
+            <!-- 하위 호환을 위한 숨김 컨테이너 -->
+            <div id="ruleList" style="display: none;"></div>
+            <div id="parsedSection" style="display: none;"></div>
+            <div id="pptxSection" style="display: none;"></div>
+            <div id="pptxFormGrid" style="display: none;"></div>
+
+            <!-- 접을 수 있는 원본 OCR 텍스트 아코디언 -->
+            <details class="raw-ocr-details">
+                <summary class="raw-ocr-summary">
+                    <span><i class="fa-solid fa-file-lines"></i> CLOVA OCR 원본 추출 텍스트 확인 (전문)</span>
+                    <button type="button" id="copyBtn" class="btn-mini-copy" style="display:none;"><i class="fa-solid fa-copy"></i> 복사</button>
+                </summary>
+                <textarea id="resultText" readonly placeholder="추출된 원본 텍스트"></textarea>
+            </details>
+
+            <!-- Step 2 하단 액션 버튼 바 -->
+            <div class="step-action-bar">
+                <button type="button" class="btn-nav-back" onclick="confirmResetToStep1()">
+                    <i class="fa-solid fa-arrow-left"></i> 다시 업로드하기
+                </button>
+                <button type="button" class="btn-nav-next" onclick="setStep(3)">
+                    다음: 자막 및 자료 생성 단계로 <i class="fa-solid fa-arrow-right"></i>
+                </button>
             </div>
         </div>
-
-        <button id="downloadBiblePptxBtn" style="background-color: #27ae60; font-size: 1.1rem; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <i class="fa-solid fa-file-powerpoint" style="font-size: 1.3rem;"></i> 
-            <span>성경봉독 자막 PPTX 생성 및 다운로드</span>
-        </button>
     </div>
 
-    <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
+    <!-- ============================================== -->
+    <!-- STEP 3: 주일예배 PPTX 생성 및 다운로드 허브 -->
+    <!-- ============================================== -->
+    <div id="step3View" class="wizard-step">
+        <div class="wizard-card">
+            
+            <div class="step-section-header text-center" style="justify-content: center; margin-bottom: 25px;">
+                <div>
+                    <h2 class="section-title" style="justify-content: center;"><i class="fa-solid fa-cubes"></i> 주일예배 자막 및 PPT 자료 생성 허브</h2>
+                    <p class="section-subtitle">검수된 데이터를 기반으로 주일예배에 필요한 3가지 PPT 자료를 각각 생성하고 다운로드하세요.</p>
+                </div>
+            </div>
+
+            <!-- 3개의 전용 액션 카드 그리드 -->
+            <div class="hub-cards-grid">
+                
+                <!-- ① 주보 자막 PPTX 카드 -->
+                <div class="hub-card hub-card-orange">
+                    <div>
+                        <div class="hub-card-header">
+                            <div class="hub-card-icon"><i class="fa-solid fa-file-powerpoint"></i></div>
+                            <div>
+                                <h3 class="hub-card-title">주보 자막 PPTX</h3>
+                                <span class="hub-card-tag">양식 서식 보존 치환</span>
+                            </div>
+                        </div>
+                        <p class="hub-card-desc">기존 PPTX 템플릿의 폰트 종류 및 크기(설교자 44pt/직분 32pt)를 100% 보존하며 자막을 생성합니다.</p>
+                        
+                        <div class="hub-card-meta">
+                            <div class="hub-meta-item"><strong>설교자:</strong> <span id="summaryPreacher">-</span></div>
+                            <div class="hub-meta-item"><strong>설교제목:</strong> <span id="summarySermonTitle">-</span></div>
+                        </div>
+
+                        <div class="hub-template-box">
+                            <label><i class="fa-solid fa-folder-open"></i> 템플릿 설정</label>
+                            <input type="file" id="templateFileInput" accept=".pptx" style="font-size: 0.8rem; width: 100%;">
+                            <div id="templateStatus" class="hub-template-status">기본 템플릿(주일예배자막양식.pptx)</div>
+                        </div>
+                    </div>
+
+                    <button id="downloadPptxBtn" class="btn-hub-download btn-orange">
+                        <i class="fa-solid fa-file-arrow-down"></i> <span>자막 PPTX 다운로드</span>
+                    </button>
+                </div>
+
+                <!-- ② 찬송가 PPT 카드 -->
+                <div class="hub-card hub-card-purple" id="hymnSection">
+                    <div>
+                        <div class="hub-card-header">
+                            <div class="hub-card-icon"><i class="fa-solid fa-music"></i></div>
+                            <div>
+                                <h3 class="hub-card-title">찬송가 PPT</h3>
+                                <span class="hub-card-tag">시놀로지 NAS 연동</span>
+                            </div>
+                        </div>
+                        <p class="hub-card-desc">주보에서 감지된 찬송가 장수를 시놀로지 NAS에서 직접 다운로드합니다. 직접 장수를 추가하거나 제외할 수 있습니다.</p>
+
+                        <div class="hub-hymn-list-box">
+                            <label><i class="fa-solid fa-record-vinyl"></i> 감지 및 편집 목록:</label>
+                            <div id="hymnListBadges" class="hymn-badges-wrap"></div>
+                            <div class="hub-add-hymn-row">
+                                <input type="number" id="manualHymnInput" min="1" max="645" placeholder="장수 (예: 3)">
+                                <button id="addManualHymnBtn" type="button"><i class="fa-solid fa-plus"></i> 추가</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="downloadHymnsBtn" class="btn-hub-download btn-purple">
+                        <i class="fa-solid fa-file-arrow-down"></i> <span>찬송가 PPT 다운로드</span>
+                    </button>
+                </div>
+
+                <!-- ③ 성경봉독 PPTX 카드 -->
+                <div class="hub-card hub-card-green" id="biblePptSection">
+                    <div>
+                        <div class="hub-card-header">
+                            <div class="hub-card-icon"><i class="fa-solid fa-book-bible"></i></div>
+                            <div>
+                                <h3 class="hub-card-title">성경봉독 자막 PPTX</h3>
+                                <span class="hub-card-tag">66권 DB 자동 연동</span>
+                            </div>
+                        </div>
+                        <p class="hub-card-desc">성경 66권 데이터베이스(biblereferenceppt)를 기반으로 해당 본문의 슬라이드를 자동 생성합니다.</p>
+
+                        <div class="hub-bible-passage-box">
+                            <label for="biblePassageInput"><i class="fa-solid fa-pen-nib"></i> 성경 본문:</label>
+                            <input type="text" id="biblePassageInput" placeholder="예: 요한복음 16:5-7">
+                        </div>
+
+                        <div class="hub-template-box">
+                            <label><i class="fa-solid fa-folder-open"></i> 템플릿 설정</label>
+                            <input type="file" id="bibleTemplateFileInput" accept=".pptx" style="font-size: 0.8rem; width: 100%;">
+                            <div id="bibleTemplateStatus" class="hub-template-status">기본 성경자막 템플릿</div>
+                        </div>
+
+                        <div class="hub-verses-preview">
+                            <label><i class="fa-solid fa-list-ol"></i> 성경 구절 미리보기</label>
+                            <div id="biblePreviewList" class="bible-preview-scroll"></div>
+                        </div>
+                    </div>
+
+                    <button id="downloadBiblePptxBtn" class="btn-hub-download btn-green">
+                        <i class="fa-solid fa-file-powerpoint"></i> <span>성경봉독 PPTX 다운로드</span>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Step 3 하단 보조 메뉴 -->
+            <div class="step-action-bar">
+                <button type="button" class="btn-nav-back" onclick="setStep(2)">
+                    <i class="fa-solid fa-arrow-left"></i> 데이터 수정하러 가기
+                </button>
+                <button type="button" class="btn-reset-work" onclick="confirmResetToStep1()">
+                    <i class="fa-solid fa-rotate-left"></i> 처음으로 돌아가기 (새 주보 작업)
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- 확인 모달 Dialog -->
+<div id="confirmModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+        <div class="modal-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <h3 class="modal-title">새 주보 작업 시작</h3>
+        <p class="modal-message" id="confirmModalMsg">현재 검수 및 생성된 데이터가 초기화됩니다. 처음 화면(Step 1)으로 돌아가시겠습니까?</p>
+        <div class="modal-buttons">
+            <button type="button" class="btn-modal-cancel" onclick="closeConfirmModal()">취소</button>
+            <button type="button" class="btn-modal-confirm" onclick="executeResetToStep1()">확인 (돌아가기)</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast">클립보드에 복사되었습니다!</div>
 
     <script>
+        // ==============================================
+        // 3단계 위저드(Wizard) 네비게이션 상태 및 제어 함수
+        // ==============================================
+        let currentStep = 1;
+        let hasParsedData = false;
+
+        function canNavigateTo(step) {
+            if (step === 1) return true;
+            if (step === 2) {
+                if (!hasParsedData) {
+                    showToast('주보 이미지를 업로드하고 OCR 분석을 먼저 진행해주세요.');
+                    return false;
+                }
+                return true;
+            }
+            if (step === 3) {
+                if (!hasParsedData) {
+                    showToast('먼저 주보 OCR 분석 및 데이터 검수를 완료해주세요.');
+                    return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        function setStep(targetStep) {
+            if (!canNavigateTo(targetStep)) return;
+            currentStep = targetStep;
+
+            // Stepper 인디케이터 갱신
+            for (let i = 1; i <= 3; i++) {
+                const indicator = document.getElementById(`stepIndicator${i}`);
+                if (!indicator) continue;
+                indicator.classList.remove('active', 'completed');
+                if (i === currentStep) {
+                    indicator.classList.add('active');
+                } else if (i < currentStep) {
+                    indicator.classList.add('completed');
+                }
+            }
+
+            // Stepper 라인 갱신
+            const stepLine1 = document.getElementById('stepLine1');
+            const stepLine2 = document.getElementById('stepLine2');
+            if (stepLine1) {
+                if (currentStep >= 2) stepLine1.classList.add('completed');
+                else stepLine1.classList.remove('completed');
+            }
+            if (stepLine2) {
+                if (currentStep >= 3) stepLine2.classList.add('completed');
+                else stepLine2.classList.remove('completed');
+            }
+
+            // 스텝 화면 전환
+            const step1View = document.getElementById('step1View');
+            const step2View = document.getElementById('step2View');
+            const step3View = document.getElementById('step3View');
+
+            if (step1View) step1View.classList.toggle('active', currentStep === 1);
+            if (step2View) step2View.classList.toggle('active', currentStep === 2);
+            if (step3View) step3View.classList.toggle('active', currentStep === 3);
+
+            // Step 3 진입 시 요약 카드 및 찬송가/성경 프리뷰 갱신
+            if (currentStep === 3) {
+                updateStep3Summary();
+                updateHymnsUI();
+                updateBiblePreviewUI();
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function confirmResetToStep1() {
+            if (hasParsedData) {
+                const modal = document.getElementById('confirmModal');
+                if (modal) modal.style.display = 'flex';
+            } else {
+                setStep(1);
+            }
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirmModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function executeResetToStep1() {
+            closeConfirmModal();
+            selectedFile = null;
+            selectedBase64 = null;
+            hasParsedData = false;
+            isHymnManuallyEdited = false;
+            detectedHymnNumbers = [];
+            imageInput.value = '';
+            preview.src = '';
+
+            const dropzonePrompt = document.getElementById('dropzonePrompt');
+            const filePreviewContainer = document.getElementById('filePreviewContainer');
+            const ocrSkeletonLoading = document.getElementById('ocrSkeletonLoading');
+            if (dropzonePrompt) dropzonePrompt.style.display = 'block';
+            if (filePreviewContainer) filePreviewContainer.style.display = 'none';
+            if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
+
+            extractBtn.disabled = true;
+            status.innerText = '이미지를 선택하거나 드래그해 주세요.';
+            resultText.value = '';
+
+            const groupedFormsContainer = document.getElementById('groupedFormsContainer');
+            if (groupedFormsContainer) groupedFormsContainer.innerHTML = '';
+
+            setStep(1);
+        }
+
+        function updateStep3Summary() {
+            const preacherInput = document.getElementById('pptx_input_1');
+            const titleInput = document.getElementById('pptx_input_11') || document.getElementById('pptx_input_4');
+
+            const summaryPreacher = document.getElementById('summaryPreacher');
+            const summarySermonTitle = document.getElementById('summarySermonTitle');
+
+            if (summaryPreacher) {
+                summaryPreacher.textContent = preacherInput && preacherInput.value.trim() ? preacherInput.value.trim() : '(미입력)';
+            }
+            if (summarySermonTitle) {
+                summarySermonTitle.textContent = titleInput && titleInput.value.trim() ? titleInput.value.trim() : '(미입력)';
+            }
+        }
+
         const imageInput = document.getElementById('imageInput');
         const preview = document.getElementById('preview');
         const status = document.getElementById('status');
@@ -535,11 +1519,28 @@
             reader.onload = function(evt) {
                 selectedBase64 = evt.target.result;
                 preview.src = selectedBase64;
-                preview.style.display = 'inline-block';
+
+                const dropzonePrompt = document.getElementById('dropzonePrompt');
+                const filePreviewContainer = document.getElementById('filePreviewContainer');
+                const fileNameBadge = document.getElementById('fileNameBadge');
+                const fileSizeBadge = document.getElementById('fileSizeBadge');
+
+                if (dropzonePrompt) dropzonePrompt.style.display = 'none';
+                if (filePreviewContainer) filePreviewContainer.style.display = 'block';
+
+                if (fileNameBadge) {
+                    fileNameBadge.innerHTML = `<i class="fa-regular fa-file-image"></i> ${escapeHtml(file.name)}`;
+                }
+                if (fileSizeBadge) {
+                    const sizeStr = file.size > 1024 * 1024 
+                        ? (file.size / (1024 * 1024)).toFixed(2) + ' MB'
+                        : (file.size / 1024).toFixed(1) + ' KB';
+                    fileSizeBadge.innerHTML = `<i class="fa-solid fa-hard-drive"></i> ${sizeStr}`;
+                }
             };
             reader.readAsDataURL(file);
             
-            status.innerText = `[${file.name}] 이미지 준비 완료! 아래 버튼을 눌러주세요.`;
+            status.innerText = `[${file.name}] 이미지 준비 완료! 아래 'OCR 분석 시작' 버튼을 눌러주세요.`;
             extractBtn.disabled = false;
             resultText.value = "";
             copyBtn.style.display = 'none';
@@ -555,6 +1556,9 @@
             resultText.value = "Naver CLOVA OCR AI 모델이 이미지를 분석 중입니다. 잠시만 기다려주세요...";
             copyBtn.style.display = 'none';
             parsedSection.style.display = 'none';
+
+            const ocrSkeletonLoading = document.getElementById('ocrSkeletonLoading');
+            if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'block';
 
             try {
                 // 확장자 format 추출
@@ -595,13 +1599,19 @@
                 // 파서 실행 중 발생할 수 있는 런타임 예외 캡처
                 try {
                     processRules(data.text, data.raw);
+                    hasParsedData = true;
+                    if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
+                    setStep(2);
+                    showToast("데이터 분석이 완료되어 검수 화면으로 이동했습니다.");
                 } catch (parseError) {
+                    if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
                     console.error('[Parser Runtime Error]:', parseError);
                     status.innerText = `⚠️ 파싱 런타임 오류: ${parseError.message}`;
                     showToast(`파서 오류: ${parseError.message}`);
                 }
 
             } catch (error) {
+                if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
                 console.error('[OCR API & System Error]:', error);
                 status.innerText = `🚨 [${error.name || 'Error'}] ${error.message}`;
                 
@@ -1427,37 +2437,112 @@
             });
             parsedSection.style.display = 'block';
 
-            // PPTX 검토 폼 렌더링 (ruleDefs 항목 수에 맞춰 동적 렌더링)
-            pptxFormGrid.innerHTML = '';
-            ruleDefs.forEach(r => {
-                const i = r.id;
-                const rawVal = r.value || '';
-                const group = document.createElement('div');
-                group.className = 'pptx-form-group';
-                group.innerHTML = `
-                    <label for="pptx_input_${i}">${i}. ${escapeHtml(r.label)} ({${i}번})</label>
-                    <input type="text" id="pptx_input_${i}" value="${escapeHtml(rawVal)}" placeholder="내용 입력">
-                `;
-                pptxFormGrid.appendChild(group);
-            });
+            // 4개 그룹별 인라인 편집 카드 폼 렌더링
+            const groupedFormsContainer = document.getElementById('groupedFormsContainer');
+            if (groupedFormsContainer) {
+                groupedFormsContainer.innerHTML = '';
 
-            // 입력값 수정 시 찬송가 목록 및 성경 본문 실시간 업데이트 리스너 추가
-            pptxFormGrid.querySelectorAll('input').forEach(input => {
-                input.addEventListener('input', () => {
-                    updateHymnsUI();
-
-                    const input9 = document.getElementById('pptx_input_9');
-                    const input3 = document.getElementById('pptx_input_3');
-                    const targetInput = (currentSundayType === "다함께 주일") ? input3 : input9;
-                    const biblePassageInput = document.getElementById('biblePassageInput');
-                    if (targetInput && biblePassageInput) {
-                        biblePassageInput.value = targetInput.value;
-                        updateBiblePreviewUI();
+                const getRuleGroup = (r) => {
+                    const lbl = r.label;
+                    if (lbl === '설교자' || lbl === '설교 제목') {
+                        return 'A';
                     }
-                });
-            });
+                    if (lbl.includes('찬양대') || lbl.includes('특별')) {
+                        return 'D';
+                    }
+                    if (lbl.includes('찬송') || lbl.includes('성시') || lbl.includes('찬양')) {
+                        return 'B';
+                    }
+                    if (lbl.includes('기도') || lbl.includes('성경') || lbl.includes('본문') || lbl.includes('봉독')) {
+                        return 'C';
+                    }
+                    return 'D';
+                };
 
-            pptxSection.style.display = 'block';
+                const groupsConfig = {
+                    'A': {
+                        name: '그룹 A: 예배 및 설교',
+                        icon: 'fa-solid fa-microphone-lines',
+                        items: []
+                    },
+                    'B': {
+                        name: '그룹 B: 찬송 및 성시',
+                        icon: 'fa-solid fa-music',
+                        items: []
+                    },
+                    'C': {
+                        name: '그룹 C: 기도 및 봉독',
+                        icon: 'fa-solid fa-hands-praying',
+                        items: []
+                    },
+                    'D': {
+                        name: '그룹 D: 찬양대 및 기타',
+                        icon: 'fa-solid fa-users-line',
+                        items: []
+                    }
+                };
+
+                ruleDefs.forEach(r => {
+                    const gKey = getRuleGroup(r);
+                    groupsConfig[gKey].items.push(r);
+                });
+
+                ['A', 'B', 'C', 'D'].forEach(key => {
+                    const grp = groupsConfig[key];
+                    if (grp.items.length === 0) return;
+
+                    const card = document.createElement('div');
+                    card.className = 'group-card';
+
+                    let fieldsHtml = '';
+                    grp.items.forEach(r => {
+                        const rawVal = r.value || '';
+                        fieldsHtml += `
+                            <div class="form-field-group">
+                                <label for="pptx_input_${r.id}">
+                                    <span class="field-num">${r.id}</span>
+                                    <span class="field-name">${escapeHtml(r.label)}</span>
+                                    <span class="field-tag">({${r.id}번})</span>
+                                </label>
+                                <input type="text" id="pptx_input_${r.id}" value="${escapeHtml(rawVal)}" placeholder="내용 입력">
+                            </div>
+                        `;
+                    });
+
+                    card.innerHTML = `
+                        <div class="group-header">
+                            <div class="group-title-wrap">
+                                <span class="group-icon"><i class="${grp.icon}"></i></span>
+                                <span>${grp.name}</span>
+                            </div>
+                            <span class="group-badge">${grp.items.length}개 항목</span>
+                        </div>
+                        <div class="group-fields-body">
+                            ${fieldsHtml}
+                        </div>
+                    `;
+
+                    groupedFormsContainer.appendChild(card);
+                });
+
+                // 실시간 리스너 바인딩 (찬송가, 성경 본문, Step 3 요약 동기화)
+                groupedFormsContainer.querySelectorAll('input').forEach(input => {
+                    input.addEventListener('input', () => {
+                        updateHymnsUI();
+
+                        const input9 = document.getElementById('pptx_input_9');
+                        const input3 = document.getElementById('pptx_input_3');
+                        const targetInput = (currentSundayType === "다함께 주일") ? input3 : input9;
+                        const biblePassageInput = document.getElementById('biblePassageInput');
+                        if (targetInput && biblePassageInput) {
+                            biblePassageInput.value = targetInput.value;
+                            updateBiblePreviewUI();
+                        }
+
+                        updateStep3Summary();
+                    });
+                });
+            }
 
             // 찬송가 번호 감지 및 시놀로지 NAS 일괄 다운로드 UI 업데이트
             updateHymnsUI();
@@ -1469,8 +2554,7 @@
                 biblePassageInput.value = scriptureItem.value;
             }
             updateBiblePreviewUI();
-            const biblePptSection = document.getElementById('biblePptSection');
-            if (biblePptSection) biblePptSection.style.display = 'block';
+            updateStep3Summary();
         }
 
         function updateHymnsUI() {
