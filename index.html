@@ -12,6 +12,14 @@
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
             --primary-light: #eff6ff;
+            /* Dynamic Ambient Theme Variables */
+            --theme-accent: #3b82f6;
+            --theme-accent-hover: #2563eb;
+            --theme-accent-glow: rgba(59, 130, 246, 0.35);
+            --theme-accent-subtle: rgba(59, 130, 246, 0.12);
+            --theme-secondary: #8b5cf6;
+            --theme-secondary-glow: rgba(139, 92, 246, 0.3);
+
             --success: #059669;
             --success-light: #ecfdf5;
             --warning: #d97706;
@@ -40,46 +48,240 @@
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Pretendard Variable", Pretendard, "Segoe UI", Roboto, sans-serif;
             padding: 30px 16px 60px 16px;
-            background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 50%, #f1f5f9 100%);
+            background-color: #090d16;
             color: var(--gray-800);
             min-height: 100vh;
             line-height: 1.6;
+            position: relative;
+            overflow-x: hidden;
+            transition: background-color 0.7s ease;
+        }
+
+        /* Ambient Glow Background Canvas Layer */
+        .ambient-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -10;
+            overflow: hidden;
+            pointer-events: none;
+            background-color: #090d16;
+            transition: background-color 0.7s ease;
+        }
+
+        .ambient-img {
+            position: absolute;
+            top: -20%;
+            left: -20%;
+            width: 140%;
+            height: 140%;
+            object-fit: cover;
+            transform: scale(1.25);
+            filter: blur(80px) saturate(1.4);
+            -webkit-filter: blur(80px) saturate(1.4);
+            opacity: 0;
+            will-change: transform, opacity;
+            transform-gpu: translate3d(0, 0, 0);
+            transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 1.2s ease;
+        }
+
+        .ambient-img.active {
+            opacity: 0.26;
+            transform: scale(1.15);
+        }
+
+        .ambient-vignette {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 30%, rgba(9, 13, 22, 0.3) 0%, rgba(9, 13, 22, 0.7) 60%, rgba(9, 13, 22, 0.95) 100%),
+                        linear-gradient(180deg, rgba(9, 13, 22, 0.35) 0%, rgba(9, 13, 22, 0.88) 100%);
+            pointer-events: none;
         }
 
         .app-wrapper {
             max-width: 980px;
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
 
         /* App Top Brand Header */
         .app-header {
             text-align: center;
             margin-bottom: 24px;
+            position: relative;
+        }
+        .header-top-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 12px;
         }
         .brand-badge {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 4px 12px;
+            padding: 5px 14px;
             border-radius: 9999px;
-            background: rgba(37, 99, 235, 0.1);
-            color: var(--primary);
-            font-size: 0.8rem;
+            background: var(--theme-accent-subtle);
+            color: var(--theme-accent);
+            border: 1px solid var(--theme-accent-glow);
+            font-size: 0.82rem;
             font-weight: 700;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.04em;
             text-transform: uppercase;
-            margin-bottom: 10px;
+            box-shadow: 0 0 16px var(--theme-accent-subtle);
+            transition: all 0.5s ease;
         }
         .brand-title {
-            font-size: 2rem;
+            font-size: 2.1rem;
             font-weight: 800;
-            color: var(--gray-900);
+            color: #f8fafc;
             letter-spacing: -0.02em;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
         }
         .brand-subtitle {
-            font-size: 0.95rem;
-            color: var(--gray-600);
+            font-size: 0.98rem;
+            color: #94a3b8;
+        }
+
+        /* Theme Option Menu in Header */
+        .theme-menu-wrap {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        @media (max-width: 680px) {
+            .header-top-row {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .theme-menu-wrap {
+                position: static;
+                transform: none;
+            }
+        }
+        .btn-theme-ambient {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e2e8f0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .btn-theme-ambient:hover {
+            background: rgba(255, 255, 255, 0.18);
+            border-color: var(--theme-accent);
+            color: #ffffff;
+            box-shadow: 0 0 14px var(--theme-accent-glow);
+        }
+        .theme-indicator-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--theme-accent);
+            box-shadow: 0 0 8px var(--theme-accent);
+            transition: all 0.5s ease;
+        }
+        .ambient-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 290px;
+            background: rgba(15, 23, 42, 0.94);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 20px var(--theme-accent-subtle);
+            z-index: 1000;
+            text-align: left;
+            animation: fadeInSlideDown 0.25s ease forwards;
+        }
+        @keyframes fadeInSlideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .ambient-dropdown-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .ambient-dropdown-desc {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            line-height: 1.45;
+            margin-bottom: 12px;
+        }
+        .ambient-color-preview-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            margin-bottom: 14px;
+        }
+        .color-chip {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            border: 1.5px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: background-color 0.5s ease;
+        }
+        .ambient-dropdown-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .btn-dropdown-action {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: var(--theme-accent);
+            color: #ffffff;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-dropdown-action:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 0 10px var(--theme-accent-glow);
+        }
+        .btn-dropdown-action.secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .btn-dropdown-action.secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
         }
 
         /* Modern Stepper Indicator Card */
@@ -87,14 +289,15 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(226, 232, 240, 0.8);
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
             border-radius: 18px;
             padding: 16px 28px;
-            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 12px 36px -6px rgba(0, 0, 0, 0.35), 0 0 24px var(--theme-accent-subtle);
             margin-bottom: 24px;
+            transition: box-shadow 0.6s ease, border-color 0.6s ease;
         }
         .stepper-item {
             display: flex;
@@ -122,10 +325,10 @@
             display: none;
         }
         .stepper-item.active .stepper-icon {
-            background: var(--primary);
+            background: var(--theme-accent);
             color: #ffffff;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.22);
+            border-color: var(--theme-accent);
+            box-shadow: 0 0 0 4px var(--theme-accent-glow), 0 0 16px var(--theme-accent-glow);
         }
         .stepper-item.completed .stepper-icon {
             background: var(--success);
@@ -152,10 +355,10 @@
             font-size: 0.95rem;
             font-weight: 700;
             color: var(--gray-700);
-            transition: color 0.2s;
+            transition: color 0.3s;
         }
         .stepper-item.active .stepper-label {
-            color: var(--primary);
+            color: var(--theme-accent);
         }
         .stepper-item.completed .stepper-label {
             color: var(--gray-800);
@@ -166,10 +369,11 @@
             background: var(--gray-200);
             margin: 0 16px;
             border-radius: 2px;
-            transition: background 0.3s ease;
+            transition: background 0.4s ease, box-shadow 0.4s ease;
         }
-        .stepper-line.active {
-            background: linear-gradient(90deg, var(--primary), var(--primary-hover));
+        .stepper-line.completed {
+            background: linear-gradient(90deg, var(--theme-accent), var(--theme-secondary));
+            box-shadow: 0 0 8px var(--theme-accent-glow);
         }
 
         /* Wizard Step Views (Transitions) */
@@ -187,14 +391,15 @@
 
         /* Glassmorphic Wizard Card */
         .wizard-card {
-            background: rgba(255, 255, 255, 0.88);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            border: 1px solid rgba(226, 232, 240, 0.85);
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
             border-radius: 20px;
             padding: 32px 28px;
-            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 16px 44px -10px rgba(0, 0, 0, 0.4), 0 0 30px var(--theme-accent-subtle);
             margin-bottom: 20px;
+            transition: box-shadow 0.6s ease, border-color 0.6s ease;
         }
 
         .text-center { text-align: center; }
@@ -203,13 +408,15 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 4px 14px;
+            padding: 5px 15px;
             border-radius: 20px;
-            background: var(--primary-light);
-            color: var(--primary);
+            background: var(--theme-accent-subtle);
+            color: var(--theme-accent);
+            border: 1px solid var(--theme-accent-glow);
             font-size: 0.85rem;
             font-weight: 700;
             margin-bottom: 12px;
+            transition: all 0.5s ease;
         }
         .card-hero-title {
             font-size: 1.6rem;
@@ -227,35 +434,36 @@
         /* Step 1: Upload Dropzone */
         .upload-dropzone {
             padding: 40px 24px;
-            border: 2.5px dashed #93c5fd;
+            border: 2.5px dashed var(--theme-accent-glow);
             border-radius: 18px;
             background: #f8fafc;
             cursor: pointer;
-            transition: all 0.25s ease;
+            transition: all 0.3s ease;
             margin: 15px 0 25px 0;
             text-align: center;
         }
         .upload-dropzone:hover, .upload-dropzone.drag-over {
-            background: #eff6ff;
-            border-color: var(--primary);
-            transform: scale(1.01);
-            box-shadow: 0 12px 24px -4px rgba(37, 99, 235, 0.12);
+            background: var(--theme-accent-subtle);
+            border-color: var(--theme-accent);
+            transform: scale(1.015);
+            box-shadow: 0 14px 30px -4px var(--theme-accent-glow), 0 0 25px var(--theme-accent-subtle);
         }
         .dropzone-icon-ring {
             width: 70px;
             height: 70px;
             border-radius: 50%;
-            background: #dbeafe;
-            color: var(--primary);
+            background: var(--theme-accent-subtle);
+            color: var(--theme-accent);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-size: 2rem;
             margin-bottom: 16px;
-            transition: transform 0.2s;
+            box-shadow: 0 0 16px var(--theme-accent-subtle);
+            transition: transform 0.25s ease, background-color 0.5s ease, color 0.5s ease;
         }
         .upload-dropzone:hover .dropzone-icon-ring {
-            transform: translateY(-3px) scale(1.05);
+            transform: translateY(-3px) scale(1.06);
         }
         .dropzone-title {
             font-size: 1.15rem;
@@ -324,14 +532,16 @@
         }
         .skeleton-pulse-ring {
             font-size: 2.2rem;
-            color: var(--primary);
+            color: var(--theme-accent);
             margin-bottom: 10px;
+            transition: color 0.5s ease;
         }
         .skeleton-title {
             font-size: 1rem;
             font-weight: 700;
-            color: var(--primary);
+            color: var(--theme-accent);
             margin-bottom: 16px;
+            transition: color 0.5s ease;
         }
         .skeleton-bars {
             max-width: 450px;
@@ -352,14 +562,15 @@
 
         .status-box {
             font-weight: 600;
-            color: var(--primary);
+            color: var(--theme-accent);
             margin: 14px 0;
             font-size: 0.95rem;
             min-height: 24px;
+            transition: color 0.5s ease;
         }
 
         .btn-primary-cta {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-accent-hover) 100%);
             color: white;
             border: none;
             padding: 16px 28px;
@@ -372,17 +583,18 @@
             align-items: center;
             justify-content: center;
             gap: 10px;
-            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-            transition: all 0.2s ease;
+            box-shadow: 0 6px 20px -2px var(--theme-accent-glow);
+            transition: all 0.3s ease;
         }
         .btn-primary-cta:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 28px -2px var(--theme-accent-glow);
         }
         .btn-primary-cta:disabled {
             background: #cbd5e1;
             box-shadow: none;
             cursor: not-allowed;
+            transform: none;
         }
 
         /* Step 2: Sunday Type Banner */
@@ -416,8 +628,9 @@
             font-size: 0.9rem;
             font-weight: 700;
             color: white;
-            background: var(--primary);
-            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+            background: var(--theme-accent);
+            box-shadow: 0 0 12px var(--theme-accent-glow);
+            transition: all 0.5s ease;
         }
         .sunday-type-banner.together-sunday .sunday-badge {
             background: #d97706;
@@ -483,6 +696,11 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
             display: flex;
             flex-direction: column;
+            transition: all 0.25s ease;
+        }
+        .group-card:hover {
+            border-color: var(--theme-accent);
+            box-shadow: 0 8px 24px -4px var(--theme-accent-subtle), 0 0 16px var(--theme-accent-subtle);
         }
         .group-header {
             display: flex;
@@ -501,7 +719,8 @@
             color: var(--gray-800);
         }
         .group-icon {
-            color: var(--primary);
+            color: var(--theme-accent);
+            transition: color 0.5s ease;
         }
         .group-badge {
             font-size: 0.75rem;
@@ -555,10 +774,10 @@
             transition: all 0.2s ease;
         }
         .form-field-group input:focus {
-            border-color: var(--primary);
+            border-color: var(--theme-accent);
             background: #ffffff;
             outline: none;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+            box-shadow: 0 0 0 3px var(--theme-accent-glow);
         }
 
         /* Collapsible Raw OCR Details */
@@ -628,7 +847,7 @@
             border-color: var(--gray-400);
         }
         .btn-nav-next {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            background: linear-gradient(135deg, var(--theme-accent), var(--theme-accent-hover));
             color: white;
             border: none;
             padding: 14px 28px;
@@ -639,7 +858,7 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+            box-shadow: 0 4px 14px var(--theme-accent-glow);
             transition: all 0.2s;
         }
         .btn-nav-next:hover {
@@ -854,9 +1073,25 @@
             cursor: not-allowed;
             transform: none;
         }
-        .btn-orange { background: linear-gradient(135deg, #ea580c, #c2410c); box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3); }
-        .btn-purple { background: linear-gradient(135deg, #9333ea, #7e22ce); box-shadow: 0 4px 12px rgba(147, 51, 234, 0.3); }
-        .btn-green  { background: linear-gradient(135deg, #059669, #047857); box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); }
+        .btn-orange { 
+            background: linear-gradient(135deg, var(--theme-accent, #ea580c), var(--theme-accent-hover, #c2410c)); 
+            box-shadow: 0 4px 14px var(--theme-accent-glow, rgba(234, 88, 12, 0.3)); 
+            transition: all 0.2s ease;
+        }
+        .btn-purple { 
+            background: linear-gradient(135deg, var(--theme-secondary, #9333ea), #7e22ce); 
+            box-shadow: 0 4px 14px var(--theme-secondary-glow, rgba(147, 51, 234, 0.3)); 
+            transition: all 0.2s ease;
+        }
+        .btn-green  { 
+            background: linear-gradient(135deg, #059669, #047857); 
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); 
+            transition: all 0.2s ease;
+        }
+        .btn-orange:hover:not(:disabled), .btn-purple:hover:not(:disabled), .btn-green:hover:not(:disabled) {
+            transform: translateY(-2px);
+            filter: brightness(1.08);
+        }
 
         .btn-reset-work {
             background: #fff;
@@ -961,11 +1196,49 @@
 </head>
 <body>
 
+<!-- 뒷배경 엠비언트 레이어 (Ambient Glow Background Canvas) -->
+<div id="ambientContainer" class="ambient-layer">
+    <img id="ambientBgImg" class="ambient-img" alt="" />
+    <div class="ambient-vignette"></div>
+</div>
+
 <div class="app-wrapper">
 
     <!-- Top App Brand Header -->
     <header class="app-header">
-        <div class="brand-badge"><i class="fa-solid fa-tv"></i> 방송팀 원클릭 솔루션</div>
+        <div class="header-top-row">
+            <div class="brand-badge"><i class="fa-solid fa-tv"></i> 방송팀 원클릭 솔루션</div>
+            
+            <!-- (옵션 지원) 엠비언트 테마 설정 팝오버 메뉴 -->
+            <div class="theme-menu-wrap">
+                <button type="button" class="btn-theme-ambient" id="ambientMenuBtn" title="동적 엠비언트 테마 설정">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> <span>앰비언트 테마</span>
+                    <span class="theme-indicator-dot" id="themeActiveDot"></span>
+                </button>
+                <div id="ambientDropdown" class="ambient-dropdown" style="display: none;">
+                    <div class="ambient-dropdown-header">
+                        <i class="fa-solid fa-palette"></i> 엠비언트 테마 엔진
+                    </div>
+                    <div class="ambient-dropdown-body">
+                        <p class="ambient-dropdown-desc">주보 이미지의 색감을 실시간 추출하여 Apple Music / Spotify 스타일 글로우 테마를 연출합니다.</p>
+                        <div class="ambient-color-preview-row">
+                            <span>추출 테마 색상:</span>
+                            <div class="color-chip" id="themeChipPrimary" title="메인 액센트 (Primary Accent)"></div>
+                            <div class="color-chip" id="themeChipSecondary" title="서브 액센트 (Secondary Accent)"></div>
+                        </div>
+                        <div class="ambient-dropdown-actions">
+                            <button type="button" class="btn-dropdown-action" onclick="document.getElementById('customThemeInput').click()">
+                                <i class="fa-solid fa-image"></i> 사용자 지정 배경 이미지 불러오기
+                            </button>
+                            <button type="button" class="btn-dropdown-action secondary" onclick="resetToBulletinTheme()">
+                                <i class="fa-solid fa-rotate-left"></i> 기본/주보 테마로 복원
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <input type="file" id="customThemeInput" accept="image/*" style="display: none;">
+            </div>
+        </div>
         <h1 class="brand-title">두레교회 주일 방송팀 작업</h1>
         <p class="brand-subtitle">주보 이미지 한 장으로 자막 PPTX, 찬송가 PPT, 성경봉독 PPTX를 자동 완성합니다.</p>
     </header>
@@ -1363,6 +1636,7 @@
             const groupedFormsContainer = document.getElementById('groupedFormsContainer');
             if (groupedFormsContainer) groupedFormsContainer.innerHTML = '';
 
+            resetToBulletinTheme();
             setStep(1);
         }
 
@@ -1379,6 +1653,256 @@
             if (summarySermonTitle) {
                 summarySermonTitle.textContent = titleInput && titleInput.value.trim() ? titleInput.value.trim() : '(미입력)';
             }
+        }
+
+        // ==============================================
+        // Dynamic Ambient Theming Engine (HTML5 Canvas)
+        // ==============================================
+        let currentThemeSource = 'auto'; // 'auto' | 'custom'
+
+        function applyThemeColors(primaryRgb, secondaryRgb) {
+            const root = document.documentElement;
+            const pR = primaryRgb.r, pG = primaryRgb.g, pB = primaryRgb.b;
+            const sR = secondaryRgb.r, sG = secondaryRgb.g, sB = secondaryRgb.b;
+
+            const primaryHex = rgbToHex(pR, pG, pB);
+            const secondaryHex = rgbToHex(sR, sG, sB);
+            const primaryHover = adjustBrightness(pR, pG, pB, -15);
+
+            root.style.setProperty('--theme-accent', primaryHex);
+            root.style.setProperty('--theme-accent-hover', primaryHover);
+            root.style.setProperty('--theme-accent-glow', `rgba(${pR}, ${pG}, ${pB}, 0.38)`);
+            root.style.setProperty('--theme-accent-subtle', `rgba(${pR}, ${pG}, ${pB}, 0.12)`);
+            root.style.setProperty('--theme-secondary', secondaryHex);
+            root.style.setProperty('--theme-secondary-glow', `rgba(${sR}, ${sG}, ${sB}, 0.32)`);
+
+            // 드롭다운 칩 및 인디케이터 동기화
+            const chipP = document.getElementById('themeChipPrimary');
+            const chipS = document.getElementById('themeChipSecondary');
+            const dot = document.getElementById('themeActiveDot');
+            if (chipP) chipP.style.backgroundColor = primaryHex;
+            if (chipS) chipS.style.backgroundColor = secondaryHex;
+            if (dot) {
+                dot.style.backgroundColor = primaryHex;
+                dot.style.boxShadow = `0 0 10px ${primaryHex}`;
+            }
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + [r, g, b].map(x => {
+                const hex = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+                return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+
+        function adjustBrightness(r, g, b, percent) {
+            const factor = 1 + percent / 100;
+            const nR = Math.max(0, Math.min(255, Math.round(r * factor)));
+            const nG = Math.max(0, Math.min(255, Math.round(g * factor)));
+            const nB = Math.max(0, Math.min(255, Math.round(b * factor)));
+            return rgbToHex(nR, nG, nB);
+        }
+
+        // HTML5 Canvas 기반 대표 색상 (Primary & Secondary Accent) 추출 알고리즘
+        function extractPaletteFromImage(imgElement) {
+            return new Promise((resolve) => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    const sampleSize = 64;
+                    canvas.width = sampleSize;
+                    canvas.height = sampleSize;
+
+                    ctx.drawImage(imgElement, 0, 0, sampleSize, sampleSize);
+                    const imgData = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+
+                    // 16개 색상(Hue) 버킷으로 양자화 분석
+                    const buckets = [];
+                    for (let i = 0; i < 16; i++) {
+                        buckets.push({ count: 0, rSum: 0, gSum: 0, bSum: 0, score: 0 });
+                    }
+
+                    let fallbackR = 0, fallbackG = 0, fallbackB = 0, fallbackCount = 0;
+
+                    for (let i = 0; i < imgData.length; i += 4) {
+                        const r = imgData[i];
+                        const g = imgData[i + 1];
+                        const b = imgData[i + 2];
+                        const a = imgData[i + 3];
+
+                        if (a < 128) continue;
+
+                        const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
+                        const max = Math.max(rNorm, gNorm, bNorm);
+                        const min = Math.min(rNorm, gNorm, bNorm);
+                        const d = max - min;
+                        const l = (max + min) / 2;
+
+                        fallbackR += r;
+                        fallbackG += g;
+                        fallbackB += b;
+                        fallbackCount++;
+
+                        // 극단적인 흰색(L > 0.92), 검정색(L < 0.12), 채도 없는 회색(S < 0.16) 필터링
+                        if (l > 0.92 || l < 0.12) continue;
+                        const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                        if (isNaN(s) || s < 0.16) continue;
+
+                        let h = 0;
+                        if (max === rNorm) {
+                            h = ((gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0)) / 6;
+                        } else if (max === gNorm) {
+                            h = ((bNorm - rNorm) / d + 2) / 6;
+                        } else {
+                            h = ((rNorm - gNorm) / d + 4) / 6;
+                        }
+
+                        const bin = Math.floor(h * 16) % 16;
+                        // 채도와 명도가 적절한 가독성 높은 색상에 가중치 부여
+                        const score = Math.pow(s, 1.4) * (1 - Math.abs(l - 0.5) * 1.3);
+                        buckets[bin].count++;
+                        buckets[bin].rSum += r;
+                        buckets[bin].gSum += g;
+                        buckets[bin].bSum += b;
+                        buckets[bin].score += score;
+                    }
+
+                    const sortedBins = buckets
+                        .filter(b => b.count > 0)
+                        .sort((a, b) => b.score - a.score);
+
+                    if (sortedBins.length > 0) {
+                        const best = sortedBins[0];
+                        const primary = {
+                            r: Math.round(best.rSum / best.count),
+                            g: Math.round(best.gSum / best.count),
+                            b: Math.round(best.bSum / best.count)
+                        };
+
+                        let secondary = null;
+                        for (let j = 1; j < sortedBins.length; j++) {
+                            const cand = sortedBins[j];
+                            const cR = cand.rSum / cand.count;
+                            const cG = cand.gSum / cand.count;
+                            const cB = cand.bSum / cand.count;
+                            const dist = Math.hypot(primary.r - cR, primary.g - cG, primary.b - cB);
+                            if (dist > 55) {
+                                secondary = { r: Math.round(cR), g: Math.round(cG), b: Math.round(cB) };
+                                break;
+                            }
+                        }
+
+                        if (!secondary) {
+                            // 명도/색조 쉬프트 보조색
+                            secondary = {
+                                r: Math.round((primary.g + 50) % 255),
+                                g: Math.round((primary.b + 70) % 255),
+                                b: Math.round((primary.r + 90) % 255)
+                            };
+                        }
+
+                        resolve({ primary, secondary });
+                    } else if (fallbackCount > 0) {
+                        const avgR = Math.round(fallbackR / fallbackCount);
+                        const avgG = Math.round(fallbackG / fallbackCount);
+                        const avgB = Math.round(fallbackB / fallbackCount);
+                        resolve({
+                            primary: { r: Math.max(40, Math.min(220, avgR)), g: Math.max(80, Math.min(220, avgG)), b: Math.max(160, Math.min(240, avgB)) },
+                            secondary: { r: 139, g: 92, b: 246 }
+                        });
+                    } else {
+                        resolve({
+                            primary: { r: 59, g: 130, b: 246 },
+                            secondary: { r: 139, g: 92, b: 246 }
+                        });
+                    }
+                } catch (e) {
+                    console.warn('[Ambient Palette Extraction Fallback]:', e);
+                    resolve({
+                        primary: { r: 59, g: 130, b: 246 },
+                        secondary: { r: 139, g: 92, b: 246 }
+                    });
+                }
+            });
+        }
+
+        function updateAmbientBackground(fileOrUrl, isCustom = false) {
+            const ambientBgImg = document.getElementById('ambientBgImg');
+            if (!ambientBgImg) return;
+
+            let objectUrl = '';
+            if (typeof fileOrUrl === 'string') {
+                objectUrl = fileOrUrl;
+            } else if (fileOrUrl instanceof Blob || fileOrUrl instanceof File) {
+                objectUrl = URL.createObjectURL(fileOrUrl);
+            }
+
+            if (!objectUrl) return;
+
+            if (isCustom) {
+                currentThemeSource = 'custom';
+            } else {
+                if (currentThemeSource === 'custom') return; // 사용자 커스텀 고정 시 유지
+                currentThemeSource = 'auto';
+            }
+
+            const tempImg = new Image();
+            tempImg.crossOrigin = 'anonymous';
+            tempImg.onload = async function() {
+                ambientBgImg.src = objectUrl;
+                ambientBgImg.classList.add('active');
+
+                const palette = await extractPaletteFromImage(tempImg);
+                applyThemeColors(palette.primary, palette.secondary);
+            };
+            tempImg.src = objectUrl;
+        }
+
+        function resetToBulletinTheme() {
+            currentThemeSource = 'auto';
+            if (selectedFile) {
+                updateAmbientBackground(selectedFile, false);
+                showToast('주보 이미지 기반 앰비언트 테마로 복원되었습니다.');
+            } else {
+                const ambientBgImg = document.getElementById('ambientBgImg');
+                if (ambientBgImg) {
+                    ambientBgImg.classList.remove('active');
+                    ambientBgImg.src = '';
+                }
+                applyThemeColors({ r: 59, g: 130, b: 246 }, { r: 139, g: 92, b: 246 });
+                showToast('기본 다크 앰비언트 테마로 초기화되었습니다.');
+            }
+            const dd = document.getElementById('ambientDropdown');
+            if (dd) dd.style.display = 'none';
+        }
+
+        // 앰비언트 테마 드롭다운 및 커스텀 테마 리스너 바인딩
+        const ambientMenuBtn = document.getElementById('ambientMenuBtn');
+        const ambientDropdown = document.getElementById('ambientDropdown');
+        const customThemeInput = document.getElementById('customThemeInput');
+
+        if (ambientMenuBtn && ambientDropdown) {
+            ambientMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                ambientDropdown.style.display = (ambientDropdown.style.display === 'none' || !ambientDropdown.style.display) ? 'block' : 'none';
+            });
+
+            document.addEventListener('click', (e) => {
+                const wrap = document.querySelector('.theme-menu-wrap');
+                if (wrap && !wrap.contains(e.target)) {
+                    ambientDropdown.style.display = 'none';
+                }
+            });
+        }
+
+        if (customThemeInput) {
+            customThemeInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    updateAmbientBackground(e.target.files[0], true);
+                    showToast('사용자 지정 배경 테마가 적용되었습니다.');
+                    if (ambientDropdown) ambientDropdown.style.display = 'none';
+                }
+            });
         }
 
         const imageInput = document.getElementById('imageInput');
@@ -1514,6 +2038,9 @@
             }
             selectedFile = file;
             isHymnManuallyEdited = false;
+
+            // 1단계에서 주보 이미지를 드래그 앤 드롭(또는 파일 선택)하는 즉시 동적 앰비언트 테마 적용
+            updateAmbientBackground(file, false);
 
             const reader = new FileReader();
             reader.onload = function(evt) {
