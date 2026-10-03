@@ -315,8 +315,8 @@
                 extractBtn.disabled = false;
                 copyBtn.style.display = 'inline-block';
 
-                // 15가지 정밀 파싱 실행
-                process15Rules(data.text);
+                lastClovaRaw = data.raw;
+                processRules(data.text, data.raw);
 
             } catch (error) {
                 console.error(error);
@@ -326,9 +326,11 @@
             }
         });
 
+        let lastClovaRaw = null;
+
         resultText.addEventListener('input', function() {
             if (resultText.value) {
-                process15Rules(resultText.value);
+                processRules(resultText.value, lastClovaRaw);
             }
         });
 
@@ -341,7 +343,7 @@
             if (!last15Results.length) return;
             const headerText = `[주일 구분: ${currentSundayType}]\n\n`;
             const textToCopy = headerText + last15Results.map(r => `${r.id}. ${r.label}: ${r.value || '(인식 실패/없음)'}`).join('\n');
-            navigator.clipboard.writeText(textToCopy).then(() => showToast("주일 구분 및 13가지 추출 결과가 복사되었습니다!"));
+            navigator.clipboard.writeText(textToCopy).then(() => showToast(`주일 구분 및 ${last15Results.length}가지 추출 결과가 복사되었습니다!`));
         });
 
         function showToast(msg) {
@@ -351,30 +353,35 @@
         }
 
         // ===================================================
-        // 주일 종류 판별 & 15가지 명확한 추출 규칙 파서
+        // 주일 종류 판별 & 일반 주일 / 다함께 주일 파서
         // ===================================================
-        function process15Rules(rawText) {
+        function processRules(rawText, clovaRaw) {
             const lines = rawText.split('\n');
-
             const compactRaw = rawText.replace(/\s+/g, '');
             
-            if (compactRaw.includes("다함께주일") || compactRaw.includes("다함께  주일")) {
+            let isTogetherSunday = false;
+
+            if (compactRaw.includes("다함께주일") || compactRaw.includes("다함께  주일") || compactRaw.includes("다함께주일예배")) {
+                isTogetherSunday = true;
                 currentSundayType = "다함께 주일";
                 sundayBadge.innerText = "다함께 주일";
                 sundayTypeBanner.className = "sunday-type-banner together-sunday";
-                sundayDesc.innerText = "💡 '다함께 주일' 텍스트 감지 (1부 예배 없이 2부 예배만 진행)";
+                sundayDesc.innerText = "💡 '다함께 주일' 텍스트 감지 (1부 예배 없이 2부 예배만 진행 / 좌표 기반 정밀 추출)";
             } else if (compactRaw.includes("영광을하나님께")) {
+                isTogetherSunday = false;
                 currentSundayType = "일반 주일";
                 sundayBadge.innerText = "일반 주일";
                 sundayTypeBanner.className = "sunday-type-banner";
                 sundayDesc.innerText = "💡 '영광을 하나님께' 텍스트 감지 (1부, 2부 예배 진행)";
             } else {
                 if (compactRaw.includes("다함께")) {
+                    isTogetherSunday = true;
                     currentSundayType = "다함께 주일";
                     sundayBadge.innerText = "다함께 주일";
                     sundayTypeBanner.className = "sunday-type-banner together-sunday";
                     sundayDesc.innerText = "💡 '다함께 주일' 관련 문구 감지";
                 } else {
+                    isTogetherSunday = false;
                     currentSundayType = "일반 주일";
                     sundayBadge.innerText = "일반 주일";
                     sundayTypeBanner.className = "sunday-type-banner";
@@ -382,6 +389,219 @@
                 }
             }
 
+            if (isTogetherSunday) {
+                const togetherJson = parseTogetherSundayClova(clovaRaw, rawText);
+                
+                const ruleDefs = [
+                    { id: 1, label: "설교자 (preacher)", value: togetherJson.preacher },
+                    { id: 2, label: "대표기도 (prayer)", value: togetherJson.prayer },
+                    { id: 3, label: "성경봉독 담당자 (scriptureReader)", value: togetherJson.scriptureReader },
+                    { id: 4, label: "성경봉독 본문 (scripturePassage)", value: togetherJson.scripturePassage },
+                    { id: 5, label: "설교 제목 (sermonTitle)", value: togetherJson.sermonTitle },
+                    { id: 6, label: "설교후 찬양 (praiseAfterSermon)", value: togetherJson.praiseAfterSermon }
+                ];
+
+                last15Results = ruleDefs;
+                renderRulesUI(ruleDefs);
+                console.log("다함께 주일 파싱 결과 JSON:", JSON.stringify(togetherJson, null, 2));
+            } else {
+                parseNormalSundayRules(rawText, lines);
+            }
+        }
+
+        // ===================================================
+        // [다함께 주일] CLOVA OCR Y축 좌표 기반 행(Row) 클러스터링 파서
+        // ===================================================
+        function parseTogetherSundayClova(clovaRaw, rawText) {
+            let result = {
+                preacher: "",
+                prayer: "",
+                scriptureReader: "",
+                scripturePassage: "",
+                sermonTitle: "",
+                praiseAfterSermon: ""
+            };
+
+            // 만약 CLOVA raw 좌표 정보가 없는 경우 텍스트 기반 폴백 실행
+            if (!clovaRaw || !clovaRaw.images || !clovaRaw.images[0] || !clovaRaw.images[0].fields) {
+                return parseTogetherSundayTextFallback(rawText);
+            }
+
+            const fields = clovaRaw.images[0].fields;
+            if (!fields || fields.length === 0) {
+                return parseTogetherSundayTextFallback(rawText);
+            }
+
+            // 1. 각 단어/필드 블록의 Y축 중심점 및 bounding box 산출
+            const parsedFields = fields.map(f => {
+                const vertices = f.boundingPoly ? f.boundingPoly.vertices : [];
+                if (!vertices || vertices.length < 4) return null;
+
+                const minX = Math.min(...vertices.map(v => v.x));
+                const maxX = Math.max(...vertices.map(v => v.x));
+                const minY = Math.min(...vertices.map(v => v.y));
+                const maxY = Math.max(...vertices.map(v => v.y));
+                const centerY = (minY + maxY) / 2;
+                const height = maxY - minY;
+                return {
+                    text: (f.inferText || "").trim(),
+                    lineBreak: f.lineBreak,
+                    minX, maxX, minY, maxY, centerY, height
+                };
+            }).filter(f => f && f.text.length > 0);
+
+            if (parsedFields.length === 0) {
+                return parseTogetherSundayTextFallback(rawText);
+            }
+
+            // 평균 폰트 높이 계산하여 Y축 클러스터링 임계값 설정
+            const avgHeight = parsedFields.reduce((sum, f) => sum + f.height, 0) / parsedFields.length || 15;
+            const thresholdY = Math.max(10, avgHeight * 0.55);
+
+            // 2. Y축 좌표 기반 행(Row) 클러스터링
+            const rows = [];
+            parsedFields.forEach(field => {
+                let matchedRow = rows.find(row => {
+                    const rowAvgY = row.reduce((sum, item) => sum + item.centerY, 0) / row.length;
+                    return Math.abs(field.centerY - rowAvgY) < thresholdY;
+                });
+
+                if (matchedRow) {
+                    matchedRow.push(field);
+                } else {
+                    rows.push([field]);
+                }
+            });
+
+            // 행들을 Y좌표(위 -> 아래) 정렬, 행 내부 필드는 X좌표(왼쪽 -> 오른쪽) 정렬
+            rows.sort((a, b) => {
+                const avgYA = a.reduce((sum, item) => sum + item.centerY, 0) / a.length;
+                const avgYB = b.reduce((sum, item) => sum + item.centerY, 0) / b.length;
+                return avgYA - avgYB;
+            });
+
+            rows.forEach(row => row.sort((a, b) => a.minX - b.minX));
+
+            // 3. 항목별 정밀 좌표 추출 규칙 적용
+
+            // [설교자]: "예배" 또는 "인도:" 단어가 포함된 최상단 행 탐색 -> "설교:" / "설교" 키워드 우측 이름+직분
+            const worshipRow = rows.find(row => row.some(item => item.text.includes("예배") || item.text.includes("인도")));
+            if (worshipRow) {
+                const sermonIdx = worshipRow.findIndex(item => item.text.includes("설교"));
+                if (sermonIdx !== -1 && sermonIdx + 1 < worshipRow.length) {
+                    const candidate = worshipRow.slice(sermonIdx + 1).map(i => i.text).join(" ").replace(/^[:\s]*/, "").trim();
+                    result.preacher = cleanText(candidate);
+                }
+            }
+
+            // [대표기도]: 첫 번째 열이 "대표기도"인 행 -> 해당 행의 가장 우측 텍스트
+            const prayerRow = rows.find(row => row[0] && row[0].text.includes("대표기도"));
+            if (prayerRow && prayerRow.length > 1) {
+                const candidate = prayerRow[prayerRow.length - 1].text;
+                result.prayer = cleanText(candidate);
+            }
+
+            // [성경봉독 (본문 및 담당자)]: 첫 번째 열이 "성경봉독"인 행
+            // 중간 열(장:절 패턴): scripturePassage, 가장 우측 열: scriptureReader
+            const scriptureRowIndex = rows.findIndex(row => row[0] && row[0].text.includes("성경봉독"));
+            if (scriptureRowIndex !== -1) {
+                const sRow = rows[scriptureRowIndex];
+                if (sRow.length >= 2) {
+                    const passageItem = sRow.find((item, idx) => idx > 0 && (/\d+:\d+/.test(item.text) || /서|장|절/.test(item.text)));
+                    if (passageItem) {
+                        result.scripturePassage = cleanText(passageItem.text);
+                    } else if (sRow.length >= 3) {
+                        result.scripturePassage = cleanText(sRow[1].text);
+                    }
+
+                    const readerItem = sRow[sRow.length - 1];
+                    if (readerItem && readerItem.text !== result.scripturePassage) {
+                        result.scriptureReader = cleanText(readerItem.text);
+                    }
+                }
+            }
+
+            // [설교 제목]: 첫 번째 열이 "설교"인 행 -> 우측 "설교자" 표기 전 중앙 열 텍스트
+            const sermonRowIndex = rows.findIndex(row => row[0] && row[0].text.replace(/\s+/g, '') === "설교");
+            if (sermonRowIndex !== -1) {
+                const sRow = rows[sermonRowIndex];
+                const titleItems = sRow.filter((item, idx) => idx > 0 && !item.text.includes("설교자") && !item.text.includes("목사") && !item.text.includes("인도"));
+                if (titleItems.length > 0) {
+                    result.sermonTitle = cleanText(titleItems.map(i => i.text).join(" "));
+                }
+            }
+
+            // [설교후 찬양]: "설교" 행 바로 아래 나오는 "찬송" 행 -> 우측 "다함께" 표기 전 중앙 열 텍스트
+            if (sermonRowIndex !== -1 && sermonRowIndex + 1 < rows.length) {
+                const praiseRow = rows[sermonRowIndex + 1];
+                if (praiseRow[0] && praiseRow[0].text.includes("찬송")) {
+                    const praiseItems = praiseRow.filter((item, idx) => idx > 0 && !item.text.includes("다함께"));
+                    if (praiseItems.length > 0) {
+                        result.praiseAfterSermon = cleanText(praiseItems.map(i => i.text).join(" "));
+                    }
+                }
+            }
+
+            // 텍스트 폴백 보완 (인식 실패한 항목 방어 코드)
+            const fallback = parseTogetherSundayTextFallback(rawText);
+            if (!result.preacher) result.preacher = fallback.preacher;
+            if (!result.prayer) result.prayer = fallback.prayer;
+            if (!result.scripturePassage) result.scripturePassage = fallback.scripturePassage;
+            if (!result.scriptureReader) result.scriptureReader = fallback.scriptureReader;
+            if (!result.sermonTitle) result.sermonTitle = fallback.sermonTitle;
+            if (!result.praiseAfterSermon) result.praiseAfterSermon = fallback.praiseAfterSermon;
+
+            return result;
+        }
+
+        // [다함께 주일] 텍스트 기반 방어 폴백 파서
+        function parseTogetherSundayTextFallback(rawText) {
+            const lines = rawText.split('\n');
+            let res = { preacher: "", prayer: "", scriptureReader: "", scripturePassage: "", sermonTitle: "", praiseAfterSermon: "" };
+
+            lines.forEach((line, idx) => {
+                const l = line.trim();
+                if (l.includes("설교:") || l.includes("설교 :")) {
+                    const p = l.split(/설교\s*:/)[1];
+                    if (p && !res.preacher) res.preacher = cleanText(p);
+                }
+                if (l.includes("대표기도")) {
+                    const p = l.replace(/.*대표기도\s*/, '');
+                    if (p && !res.prayer) res.prayer = cleanText(p);
+                }
+                if (l.includes("성경봉독")) {
+                    const p = l.replace(/.*성경봉독\s*/, '');
+                    if (/\d+:\d+/.test(p)) {
+                        const match = p.match(/([가-힣A-Za-z0-9\s]+?\d+:\d+(?:-\d+)?)/);
+                        if (match) res.scripturePassage = cleanText(match[1]);
+                    }
+                    const parts = p.split(/\s{2,}/);
+                    if (parts.length > 1) {
+                        res.scriptureReader = cleanText(parts[parts.length - 1]);
+                    }
+                }
+                if (l.startsWith("설교") && !l.includes("설교:") && !l.includes("설교자")) {
+                    const p = l.replace(/^설\s*교\s*/, '').replace(/설교자.*/, '');
+                    if (p && !res.sermonTitle) res.sermonTitle = cleanText(p);
+                }
+                if (l.includes("찬송") && idx > 0 && lines[idx-1].includes("설교")) {
+                    const p = l.replace(/.*찬송\s*/, '').replace(/다함께.*/, '');
+                    if (p && !res.praiseAfterSermon) res.praiseAfterSermon = cleanText(p);
+                }
+            });
+
+            return res;
+        }
+
+        function cleanText(str) {
+            if (!str) return "";
+            return str.replace(/[;,\/\*\(\)]/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        // ===================================================
+        // [일반 주일] 13가지 정밀 파서
+        // ===================================================
+        function parseNormalSundayRules(rawText, lines) {
             function getUntilDoubleSpace(str) {
                 if (!str) return '';
                 const idx = str.search(/\s{2,}/);
