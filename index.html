@@ -354,21 +354,15 @@
             </div>
             
             <div style="font-weight: bold; margin-bottom: 6px; font-size: 0.9rem; color: #34495e;">
-                <i class="fa-solid fa-palette"></i> PPT 디자인 테마 선택
-            </div>
-            <select id="bibleThemeSelect" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.95rem; margin-bottom: 15px;">
-                <option value="classic-alabaster">클래식 앨러배스터 (기본 - 베이지 배경, 골드 포인트)</option>
-                <option value="olive-garden">평온한 올리브 가든 (세이지 올리브 배경, 그린 포인트)</option>
-                <option value="morning-light">새벽 하늘 블루 (은은한 블루 배경, 인디고 포인트)</option>
-            </select>
-
-            <div style="font-weight: bold; margin-bottom: 6px; font-size: 0.9rem; color: #34495e;">
-                <i class="fa-solid fa-file-powerpoint"></i> 커스텀 성경 PPTX 템플릿 (선택 사항)
+                <i class="fa-solid fa-folder-open"></i> PPTX 템플릿 선택 (기본: 성경봉독자막양식.pptx)
             </div>
             <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 6px;">
-                템플릿 내 치환 키워드: <code>(BOOK)</code>, <code>(CHAPTER)</code>, <code>(VERSE)</code>, <code>(CONTENT)</code>
+                업로드해주신 기본 템플릿(<code>templates/성경봉독자막양식.pptx</code>)을 기본으로 사용하며 커스텀 템플릿 파일(.pptx)을 지정할 수도 있습니다.
             </div>
-            <input type="file" id="bibleTemplateFileInput" accept=".pptx" style="font-size: 0.88rem; margin-bottom: 12px;">
+            <input type="file" id="bibleTemplateFileInput" accept=".pptx" style="font-size: 0.88rem;">
+            <span id="bibleTemplateStatus" style="font-size: 0.85rem; color: #27ae60; font-weight: bold; display: block; margin-top: 6px; margin-bottom: 15px;">
+                <i class="fa-solid fa-circle-check"></i> 기본 성경자막 템플릿(성경봉독자막양식.pptx) 사용 준비됨
+            </span>
 
             <div style="font-weight: bold; margin-top: 10px; margin-bottom: 8px; color: #2c3e50; font-size: 0.9rem;">
                 <i class="fa-solid fa-list-ol"></i> 추출된 성경 구절 미리보기
@@ -1472,6 +1466,17 @@
         const bibleTemplateFileInput = document.getElementById('bibleTemplateFileInput');
         const bibleThemeSelect = document.getElementById('bibleThemeSelect');
 
+        if (bibleTemplateFileInput) {
+            bibleTemplateFileInput.addEventListener('change', function() {
+                const bibleTemplateStatus = document.getElementById('bibleTemplateStatus');
+                if (bibleTemplateFileInput.files && bibleTemplateFileInput.files[0]) {
+                    bibleTemplateStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#2980b9;"></i> 커스텀 템플릿 (${escapeHtml(bibleTemplateFileInput.files[0].name)}) 적용됨`;
+                } else {
+                    bibleTemplateStatus.innerHTML = `<i class="fa-solid fa-circle-check"></i> 기본 성경자막 템플릿(성경봉독자막양식.pptx) 사용 준비됨`;
+                }
+            });
+        }
+
         downloadBiblePptxBtn.addEventListener('click', async function() {
             try {
                 downloadBiblePptxBtn.disabled = true;
@@ -1509,9 +1514,28 @@
                 const cleanPassageName = passageStr.replace(/[\s:~\-]+/g, '_');
                 const outputFileName = `${year}-${month}-${day}_성경봉독_${cleanPassageName}.pptx`;
 
-                // 1. 커스텀 성경 PPTX 템플릿 파일이 업로드된 경우 -> JSZip 치환 (키워드: (BOOK), (CHAPTER), (VERSE), (CONTENT))
+                // 1. 템플릿 ArrayBuffer 확보 (커스텀 업로드 파일 OR 기본 templates/성경봉독자막양식.pptx)
+                let templateBuffer = null;
                 if (bibleTemplateFileInput && bibleTemplateFileInput.files && bibleTemplateFileInput.files[0]) {
-                    const templateBuffer = await bibleTemplateFileInput.files[0].arrayBuffer();
+                    templateBuffer = await bibleTemplateFileInput.files[0].arrayBuffer();
+                } else {
+                    const templateCandidates = [
+                        `/templates/성경봉독자막양식.pptx`,
+                        `./templates/성경봉독자막양식.pptx`,
+                        `templates/성경봉독자막양식.pptx`
+                    ];
+                    for (let tPath of templateCandidates) {
+                        try {
+                            const res = await fetch(tPath);
+                            if (res.ok) {
+                                templateBuffer = await res.arrayBuffer();
+                                break;
+                            }
+                        } catch (e) {}
+                    }
+                }
+
+                if (templateBuffer) {
                     const zip = await JSZip.loadAsync(templateBuffer);
 
                     let presentationXml = await zip.file("ppt/presentation.xml").async("string");
@@ -1611,15 +1635,13 @@
 
                     showToast(`${outputFileName} 성경자막 다운로드가 완료되었습니다!`);
                 } else {
-                    // 2. PptxGenJS 기반 자동 슬라이드 생성
+                    // 2. PptxGenJS 기반 자동 슬라이드 폴백
                     const pptxClass = window.PptxGenJS || window.pptxgen;
                     if (!pptxClass) {
                         throw new Error("PptxGenJS 라이브러리를 불러오지 못했습니다. 네트워크 연결을 확인해주세요.");
                     }
 
-                    const selectedThemeKey = bibleThemeSelect ? bibleThemeSelect.value : "classic-alabaster";
-                    const theme = BIBLE_THEMES[selectedThemeKey] || BIBLE_THEMES["classic-alabaster"];
-
+                    const theme = BIBLE_THEMES["classic-alabaster"];
                     const pptx = new pptxClass();
                     pptx.layout = "LAYOUT_16x9";
 
