@@ -303,10 +303,15 @@
                     })
                 });
 
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(`[API HTTP ${response.status}] ${errData.error || response.statusText || '서버 응답 오류'}`);
+                }
+
                 const data = await response.json();
 
                 if (!data.success) {
-                    throw new Error(data.error || 'OCR 분석 실패');
+                    throw new Error(`[CLOVA OCR Error] ${data.error || 'OCR 분석 실패'}`);
                 }
 
                 resultText.value = data.text;
@@ -316,12 +321,33 @@
                 copyBtn.style.display = 'inline-block';
 
                 lastClovaRaw = data.raw;
-                processRules(data.text, data.raw);
+                
+                // 파서 실행 중 발생할 수 있는 런타임 예외 캡처
+                try {
+                    processRules(data.text, data.raw);
+                } catch (parseError) {
+                    console.error('[Parser Runtime Error]:', parseError);
+                    status.innerText = `⚠️ 파싱 런타임 오류: ${parseError.message}`;
+                    showToast(`파서 오류: ${parseError.message}`);
+                }
 
             } catch (error) {
-                console.error(error);
-                status.innerText = `오류: ${error.message}`;
-                resultText.value = `[분석 오류] ${error.message}\n.env.example 및 Cloudflare Pages 환경변수(CLOVA_OCR_INVOKE_URL, CLOVA_OCR_SECRET_KEY) 설정을 확인해주세요.`;
+                console.error('[OCR API & System Error]:', error);
+                status.innerText = `🚨 [${error.name || 'Error'}] ${error.message}`;
+                
+                let errorDetails = `❌ [OCR 분석 오류 발생]\n\n`;
+                errorDetails += `📌 에러 메시지: ${error.message}\n`;
+                if (error.stack) {
+                    errorDetails += `🔍 스택 트레이스:\n${error.stack.split('\n').slice(0, 3).join('\n')}\n`;
+                }
+                errorDetails += `\n💡 해결 가이드:\n`;
+                if (error.message.includes('CLOVA') || error.message.includes('API') || error.message.includes('HTTP')) {
+                    errorDetails += `1. 로컬 개발 환경(.dev.vars) 또는 Cloudflare Pages 환경변수(CLOVA_OCR_INVOKE_URL, CLOVA_OCR_SECRET_KEY) 설정을 확인해주세요.\n2. 네이버 클라우드 OCR API의 Secret Key 및 Invoke URL 유효 기간을 점검해주세요.`;
+                } else {
+                    errorDetails += `1. 프론트엔드 파싱 로직 중 코드 런타임 예외가 발생했습니다.\n2. 개발자 도구 콘솔(F12)의 에러로그를 참고해 파서 함수를 수정해주세요.`;
+                }
+
+                resultText.value = errorDetails;
                 extractBtn.disabled = false;
             }
         });
@@ -330,7 +356,12 @@
 
         resultText.addEventListener('input', function() {
             if (resultText.value) {
-                processRules(resultText.value, lastClovaRaw);
+                try {
+                    processRules(resultText.value, lastClovaRaw);
+                } catch (parseError) {
+                    console.error('[Input Parser Error]:', parseError);
+                    status.innerText = `⚠️ 실시간 파싱 오류: ${parseError.message}`;
+                }
             }
         });
 
@@ -757,10 +788,10 @@
             ];
 
             last15Results = ruleDefs;
-            render15RulesUI(ruleDefs);
+            renderRulesUI(ruleDefs);
         }
 
-        function render15RulesUI(ruleDefs) {
+        function renderRulesUI(ruleDefs) {
             ruleList.innerHTML = '';
             ruleDefs.forEach(r => {
                 const item = document.createElement('div');
@@ -773,6 +804,9 @@
             });
             parsedSection.style.display = 'block';
         }
+
+        // 하위 호환용 alias
+        const render15RulesUI = renderRulesUI;
 
         function escapeHtml(text) {
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
