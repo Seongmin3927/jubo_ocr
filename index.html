@@ -443,7 +443,7 @@
         }
 
         // ===================================================
-        // [다함께 주일] CLOVA OCR Y축 행 클러스터링 & X축 열(Column Zone) 단어 병합 파서
+        // [다함께 주일] 2D BoundingBox 좌표 기반 행(Row) 재구성 및 컬럼 단어 병합 파서
         // ===================================================
         function parseTogetherSundayClova(clovaRaw, rawText) {
             let result = {
@@ -457,7 +457,6 @@
                 praiseAfterSermon: ""
             };
 
-            // CLOVA raw 좌표 데이터 존재 유무 확인
             if (!clovaRaw || !clovaRaw.images || !clovaRaw.images[0] || !clovaRaw.images[0].fields) {
                 return parseTogetherSundayTextFallback(rawText);
             }
@@ -467,7 +466,7 @@
                 return parseTogetherSundayTextFallback(rawText);
             }
 
-            // 1. 각 단어 필드 Bounding Box & Center Y 산출
+            // 1. 2D BoundingBox 좌표 산출 및 Y축 중심점 계산
             const parsedFields = fields.map(f => {
                 const vertices = f.boundingPoly ? f.boundingPoly.vertices : [];
                 if (!vertices || vertices.length < 4) return null;
@@ -488,9 +487,9 @@
                 return parseTogetherSundayTextFallback(rawText);
             }
 
-            // 2. Y축 좌표 기반 행(Row) 클러스터링
+            // 2. Y축 중심값(Center Y) 및 상하 겹침 기준 행(Row) 클러스터링
             const avgHeight = parsedFields.reduce((sum, f) => sum + f.height, 0) / parsedFields.length || 15;
-            const thresholdY = Math.max(10, avgHeight * 0.55);
+            const thresholdY = Math.max(12, avgHeight * 0.65);
 
             const rows = [];
             parsedFields.forEach(field => {
@@ -519,42 +518,40 @@
             const allMinX = Math.min(...parsedFields.map(f => f.minX));
             const allMaxX = Math.max(...parsedFields.map(f => f.maxX));
             const totalWidth = allMaxX - allMinX || 1000;
-            const midXBoundary = allMinX + totalWidth * 0.42; // X좌표 우측구역 분기점 (약 42%)
+            
+            // X좌표 구역 분기점 (중앙: 22%~65%, 우측 담당자: 65% 이상)
+            const rightStartBoundary = allMinX + totalWidth * 0.62;
 
-            // [열(Column) 분류 및 텍스트 결합(Join) 함수]
-            // 행 내 단어들을 (좌측 카테고리 / 중앙 내용 / 우측 담당) 3개 구역으로 분류하고 X좌표 순으로 공백 결합
-            function splitAndJoinColumns(row) {
+            // [열(Column) 단어 분할 및 X좌표 순서 공백 결합 함수]
+            function extractColumns(row) {
                 if (!row || row.length === 0) return { category: "", center: "", right: "" };
                 const category = row[0].text;
                 const rest = row.slice(1);
 
-                if (rest.length === 0) return { category, center: "", right: "" };
+                const centerWords = [];
+                const rightWords = [];
 
-                const centerItems = [];
-                const rightItems = [];
-
-                rest.forEach((item) => {
+                rest.forEach(item => {
                     const isPassagePattern = /\d+:\d+/.test(item.text);
-                    const isPerformerPattern = /조$|목사|장로|집사|권사|청년부|중창단|학생|교사|찬양대/.test(item.text);
-                    const isRightSide = item.minX >= midXBoundary;
-
-                    if (isPassagePattern || (!isRightSide && !isPerformerPattern)) {
-                        centerItems.push(item);
+                    const isPerformerWord = /조$|목사|장로|집사|권사|청년부|중창단|학생|교사|찬양대|설교자/.test(item.text);
+                    
+                    if (isPassagePattern || (item.minX < rightStartBoundary && !isPerformerWord)) {
+                        centerWords.push(item);
                     } else {
-                        rightItems.push(item);
+                        rightWords.push(item);
                     }
                 });
 
                 return {
                     category,
-                    center: centerItems.map(i => i.text).join(" ").trim(),
-                    right: rightItems.map(i => i.text).join(" ").trim()
+                    center: centerWords.map(w => w.text).join(" ").trim(),
+                    right: rightWords.map(w => w.text).join(" ").trim()
                 };
             }
 
             // 3. 항목별 정밀 추출
 
-            // [설교자]: 예배 안내 행에서 "설교:" 또는 "설교" 키워드 우측의 모든 단어 결합
+            // [설교자]: 예배 안내 행에서 "설교:" 키워드 우측 단어 결합
             const worshipRow = rows.find(row => row.some(item => item.text.includes("예배") || item.text.includes("인도")));
             if (worshipRow) {
                 const sermonIdx = worshipRow.findIndex(item => item.text.includes("설교"));
@@ -563,51 +560,65 @@
                 }
             }
 
-            // [대표기도]: 좌측 열이 "대표기도"인 행 -> 우측 열의 모든 단어를 합쳐 전체 텍스트 추출
+            // [대표기도]: 좌측 열이 "대표기도"인 행 -> 우측 열 단어 전체 결합
             const prayerRow = rows.find(row => row[0] && row[0].text.includes("대표기도"));
             if (prayerRow) {
-                const cols = splitAndJoinColumns(prayerRow);
+                const cols = extractColumns(prayerRow);
                 result.prayer = cleanText(cols.right || cols.center);
             }
 
             // [성경봉독]: 좌측 열이 "성경봉독"인 행
             const scriptureRowIdx = rows.findIndex(row => row[0] && row[0].text.includes("성경봉독"));
             if (scriptureRowIdx !== -1) {
-                const scriptureRow = rows[scriptureRowIdx];
-                const cols = splitAndJoinColumns(scriptureRow);
+                const cols = extractColumns(rows[scriptureRowIdx]);
                 result.scripturePassage = cleanText(cols.center);
                 result.scriptureReader = cleanText(cols.right);
             }
 
-            // [설교]: 좌측 열이 "설교"인 행 탐색 (설교 제목)
+            // [설교]: 좌측 열이 "설교"인 행 (설교 제목)
             const sermonRowIdx = rows.findIndex(row => row[0] && row[0].text.replace(/\s+/g, '') === "설교");
             if (sermonRowIdx !== -1) {
-                const sermonRow = rows[sermonRowIdx];
-                const cols = splitAndJoinColumns(sermonRow);
-                result.sermonTitle = cleanText(cols.center || cols.right);
+                const cols = extractColumns(rows[sermonRowIdx]);
+                result.sermonTitle = cleanText(cols.center);
             }
 
-            // [설교 전 찬양 (가변 순서 처리)]: "성경봉독"과 "설교" 행 사이에 좌측 열이 "찬양"인 순서 검사
+            // [설교 전 찬양 (가변 순서)]: "성경봉독"과 "설교" 행 사이에 좌측 열이 "찬양"인 행
             if (scriptureRowIdx !== -1 && sermonRowIdx !== -1 && scriptureRowIdx < sermonRowIdx) {
                 const betweenRows = rows.slice(scriptureRowIdx + 1, sermonRowIdx);
                 const specialPraiseRow = betweenRows.find(row => row[0] && row[0].text.includes("찬양"));
                 if (specialPraiseRow) {
-                    const cols = splitAndJoinColumns(specialPraiseRow);
+                    const cols = extractColumns(specialPraiseRow);
                     result.specialPraiseTitle = cleanText(cols.center) || "-없음-";
                     result.specialPraisePerformer = cleanText(cols.right) || "-없음-";
                 }
             }
 
-            // [설교후 찬양]: "설교" 행 바로 아래 나오는 "찬송" 또는 "찬양" 행
+            // [설교 후 찬양]: "설교" 행 바로 아래 나오는 "찬송" 또는 "찬양" 행
+            let praiseRow = null;
             if (sermonRowIdx !== -1 && sermonRowIdx + 1 < rows.length) {
-                const praiseRow = rows[sermonRowIdx + 1];
-                if (praiseRow[0] && (praiseRow[0].text.includes("찬송") || praiseRow[0].text.includes("찬양"))) {
-                    const cols = splitAndJoinColumns(praiseRow);
-                    result.praiseAfterSermon = cleanText(cols.center || cols.right);
+                praiseRow = rows.slice(sermonRowIdx + 1).find(row => {
+                    const cat = row[0] ? row[0].text : "";
+                    return cat.includes("찬송") || cat.includes("찬양") || cat.includes("응답");
+                });
+            }
+            if (praiseRow) {
+                const cols = extractColumns(praiseRow);
+                result.praiseAfterSermon = cleanText(cols.center);
+            }
+
+            // 4. 단어 누락/분리 밀림 검증 안전장치 (Safety Defense)
+            // 설교 제목에 단어 1개만 들어가고 밀린 텍스트가 있을 경우 rawText 문맥 재검증
+            if (result.sermonTitle && !result.sermonTitle.includes(" ")) {
+                const m = rawText.match(/설\s*교\s+([^\n]+)/);
+                if (m) {
+                    const fullTitle = m[1].replace(/설교자.*/, '').trim();
+                    if (fullTitle.length > result.sermonTitle.length) {
+                        result.sermonTitle = cleanText(fullTitle);
+                    }
                 }
             }
 
-            // 텍스트 방어 폴백 처리
+            // 텍스트 방어 폴백 보완
             const fallback = parseTogetherSundayTextFallback(rawText);
             if (!result.preacher) result.preacher = fallback.preacher;
             if (!result.prayer) result.prayer = fallback.prayer;
