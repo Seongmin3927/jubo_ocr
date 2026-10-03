@@ -6,6 +6,7 @@
     <title>주보 OCR & 15가지 정보 파서 (Naver CLOVA OCR API)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
     <style>
         body { 
             font-family: 'Segoe UI', Pretendard, Tahoma, Geneva, Verdana, sans-serif; 
@@ -335,6 +336,51 @@
         <button id="downloadHymnsBtn" style="background-color: #8e44ad; font-size: 1.1rem; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
             <i class="fa-solid fa-file-zipper" style="font-size: 1.3rem;"></i> 
             <span>찬송가 PPT 일괄 다운로드 (.zip)</span>
+        </button>
+    </div>
+
+    <!-- 5. 성경봉독 자막 PPTX 자동 생성 섹션 (biblereferenceppt 연동) -->
+    <div class="parsed-section" id="biblePptSection" style="display: none; border-top: 4px solid #27ae60;">
+        <div class="result-header">
+            <h3><i class="fa-solid fa-book-bible" style="color: #27ae60;"></i> [5. 성경봉독 자막 PPTX 자동 생성]</h3>
+        </div>
+
+        <div style="background: #f4fbf7; border: 1px solid #d5f5e3; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #2c3e50;">
+                <i class="fa-solid fa-file-signature" style="color: #27ae60;"></i> 성경봉독 본문 지정 (9번 항목 기반)
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
+                <input type="text" id="biblePassageInput" placeholder="예: 요한복음 16:5-7 또는 시편 23:1-6" style="flex: 1; padding: 10px; border: 1px solid #ced4da; border-radius: 4px; font-weight: bold; color: #1e8449;">
+            </div>
+            
+            <div style="font-weight: bold; margin-bottom: 6px; font-size: 0.9rem; color: #34495e;">
+                <i class="fa-solid fa-palette"></i> PPT 디자인 테마 선택
+            </div>
+            <select id="bibleThemeSelect" style="width: 100%; padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.95rem; margin-bottom: 15px;">
+                <option value="classic-alabaster">클래식 앨러배스터 (기본 - 베이지 배경, 골드 포인트)</option>
+                <option value="olive-garden">평온한 올리브 가든 (세이지 올리브 배경, 그린 포인트)</option>
+                <option value="morning-light">새벽 하늘 블루 (은은한 블루 배경, 인디고 포인트)</option>
+            </select>
+
+            <div style="font-weight: bold; margin-bottom: 6px; font-size: 0.9rem; color: #34495e;">
+                <i class="fa-solid fa-file-powerpoint"></i> 커스텀 성경 PPTX 템플릿 (선택 사항)
+            </div>
+            <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 6px;">
+                템플릿 내 치환 키워드: <code>(BOOK)</code>, <code>(CHAPTER)</code>, <code>(VERSE)</code>, <code>(CONTENT)</code>
+            </div>
+            <input type="file" id="bibleTemplateFileInput" accept=".pptx" style="font-size: 0.88rem; margin-bottom: 12px;">
+
+            <div style="font-weight: bold; margin-top: 10px; margin-bottom: 8px; color: #2c3e50; font-size: 0.9rem;">
+                <i class="fa-solid fa-list-ol"></i> 추출된 성경 구절 미리보기
+            </div>
+            <div id="biblePreviewList" style="max-height: 200px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px; font-size: 0.9rem;">
+                <span style="color: #9ca3af;">성경 구절 정보를 분석 중입니다...</span>
+            </div>
+        </div>
+
+        <button id="downloadBiblePptxBtn" style="background-color: #27ae60; font-size: 1.1rem; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <i class="fa-solid fa-file-powerpoint" style="font-size: 1.3rem;"></i> 
+            <span>성경봉독 자막 PPTX 생성 및 다운로드</span>
         </button>
     </div>
 
@@ -1194,15 +1240,36 @@
                 pptxFormGrid.appendChild(group);
             });
 
-            // 입력값 수정 시 찬송가 목록 실시간 업데이트 리스너 추가
+            // 입력값 수정 시 찬송가 목록 및 성경 본문 실시간 업데이트 리스너 추가
             pptxFormGrid.querySelectorAll('input').forEach(input => {
-                input.addEventListener('input', updateHymnsUI);
+                input.addEventListener('input', () => {
+                    updateHymnsUI();
+
+                    const input9 = document.getElementById('pptx_input_9');
+                    const input3 = document.getElementById('pptx_input_3');
+                    const targetInput = (currentSundayType === "다함께 주일") ? input3 : input9;
+                    const biblePassageInput = document.getElementById('biblePassageInput');
+                    if (targetInput && biblePassageInput) {
+                        biblePassageInput.value = targetInput.value;
+                        updateBiblePreviewUI();
+                    }
+                });
             });
 
             pptxSection.style.display = 'block';
 
             // 찬송가 번호 감지 및 시놀로지 NAS 일괄 다운로드 UI 업데이트
             updateHymnsUI();
+
+            // 성경봉독 본문 항목 ({9번} 또는 {3번}) 연동 및 성경 PPTX UI 업데이트
+            const scriptureItem = ruleDefs.find(r => r.label.includes('성경봉독') || r.id === 9 || r.id === 3);
+            const biblePassageInput = document.getElementById('biblePassageInput');
+            if (scriptureItem && scriptureItem.value && biblePassageInput) {
+                biblePassageInput.value = scriptureItem.value;
+            }
+            updateBiblePreviewUI();
+            const biblePptSection = document.getElementById('biblePptSection');
+            if (biblePptSection) biblePptSection.style.display = 'block';
         }
 
         function updateHymnsUI() {
@@ -1225,6 +1292,390 @@
             }
             hymnSection.style.display = 'block';
         }
+
+        // ===================================================
+        // 성경봉독 자막 PPTX 자동 생성 모듈 (biblereferenceppt 연동)
+        // ===================================================
+        const BIBLE_BOOK_MAP = {
+            "창": "창세기", "출": "출애굽기", "레": "레위기", "민": "민수기", "신": "신명기",
+            "수": "여호수아", "삿": "사사기", "룻": "룻기",
+            "삼상": "사무엘상", "삼하": "사무엘하",
+            "왕상": "열왕기상", "왕하": "열왕기하",
+            "대상": "역대상", "대하": "역대하",
+            "스": "에스라", "느": "느헤미야", "에": "에스더",
+            "욥": "욥기", "시": "시편", "잠": "잠언",
+            "전": "전도서", "아": "아가",
+            "사": "이사야", "렘": "예레미야", "애": "예레미야애가",
+            "겔": "에스겔", "단": "다니엘",
+            "호": "호세아", "욜": "요엘", "암": "아모스", "오": "오바디아", "욘": "요나", "미": "미가",
+            "나": "나훔", "합": "하박국", "습": "스바냐", "학": "학개", "슥": "스가랴", "말": "말라기",
+            "마": "마태복음", "막": "마가복음", "눅": "누가복음", "요": "요한복음",
+            "행": "사도행전", "롬": "로마서", "고전": "고린도전서", "고후": "고린도후서",
+            "갈": "갈라디아서", "엡": "에베소서", "빌": "빌립보서", "골": "골로새서",
+            "살전": "데살로니가전서", "살후": "데살로니가후서", "딤전": "디모데전서", "딤후": "디모데후서",
+            "딛": "디도서", "몬": "빌레몬서", "히": "히브리서", "야": "야고보서",
+            "벧전": "베드로전서", "벧후": "베드로후서", "요일": "요한일서", "요이": "요한이서", "요삼": "요한삼서",
+            "유": "유다서", "계": "요한계시록"
+        };
+
+        const BIBLE_FULL_TO_SHORT = {};
+        Object.entries(BIBLE_BOOK_MAP).forEach(([short, full]) => {
+            BIBLE_FULL_TO_SHORT[full] = short;
+            BIBLE_FULL_TO_SHORT[short] = short;
+        });
+        BIBLE_FULL_TO_SHORT["오바디아"] = "오";
+        BIBLE_FULL_TO_SHORT["오바댜"] = "오";
+
+        const BIBLE_THEMES = {
+            "classic-alabaster": {
+                name: "클래식 앨러배스터 (기본)",
+                bgColor: "F6F5F0",
+                fontColor: "4A3E3D",
+                accentColor: "C29D5D",
+                fontSize: 28,
+                fontFamily: "Malgun Gothic"
+            },
+            "olive-garden": {
+                name: "평온한 올리브 가든",
+                bgColor: "EAECE6",
+                fontColor: "2F3E32",
+                accentColor: "8B7355",
+                fontSize: 28,
+                fontFamily: "Malgun Gothic"
+            },
+            "morning-light": {
+                name: "새벽 하늘 블루",
+                bgColor: "E6EEF4",
+                fontColor: "2A3E4E",
+                accentColor: "B8860B",
+                fontSize: 28,
+                fontFamily: "Malgun Gothic"
+            }
+        };
+
+        let loadedBibleData = null;
+
+        async function fetchBibleData() {
+            if (loadedBibleData) return loadedBibleData;
+
+            const candidateUrls = ['./bible_full.txt', '/bible_full.txt', 'bible_full.txt', 'public/bible_full.txt'];
+            for (const url of candidateUrls) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const text = await res.text();
+                        const parsed = {};
+                        const lines = text.split('\n');
+                        lines.forEach(line => {
+                            const match = line.trim().match(/^([가-힣]+)(\d+):(\d+)(.*)/);
+                            if (match) {
+                                const [_, book, chapter, verse, content] = match;
+                                if (!parsed[book]) parsed[book] = {};
+                                if (!parsed[book][chapter]) parsed[book][chapter] = {};
+                                parsed[book][chapter][verse] = content.trim();
+                            }
+                        });
+                        if (Object.keys(parsed).length > 0) {
+                            loadedBibleData = parsed;
+                            return loadedBibleData;
+                        }
+                    }
+                } catch (e) {}
+            }
+            return null;
+        }
+
+        // 초기 비동기 성경 데이터 로드
+        fetchBibleData().catch(e => console.warn('[Bible Fetch Error]:', e));
+
+        function parseBibleRefInput(passageStr) {
+            if (!passageStr || !passageStr.trim()) return [];
+
+            const results = [];
+            const parts = passageStr.split(/[,;\n]/);
+
+            parts.forEach(part => {
+                const str = part.trim();
+                if (!str) return;
+
+                const match = str.match(/([가-힣]+)\s*(\d+)[\s:장]*(\d+)(?:\s*[-~]\s*(\d+))?/);
+                if (match) {
+                    const rawBook = match[1].trim();
+                    const chapter = match[2].trim();
+                    const startVerse = parseInt(match[3], 10);
+                    const endVerse = match[4] ? parseInt(match[4], 10) : startVerse;
+
+                    const shortBook = BIBLE_FULL_TO_SHORT[rawBook] || rawBook;
+                    const fullBook = BIBLE_BOOK_MAP[shortBook] || rawBook;
+
+                    if (!isNaN(startVerse) && !isNaN(endVerse) && startVerse <= endVerse) {
+                        for (let v = startVerse; v <= endVerse; v++) {
+                            results.push({
+                                bookShort: shortBook,
+                                bookFull: fullBook,
+                                chapter: chapter,
+                                verse: String(v)
+                            });
+                        }
+                    }
+                }
+            });
+
+            return results;
+        }
+
+        async function updateBiblePreviewUI() {
+            const biblePassageInput = document.getElementById('biblePassageInput');
+            const biblePreviewList = document.getElementById('biblePreviewList');
+
+            if (!biblePassageInput || !biblePreviewList) return;
+
+            const passageStr = biblePassageInput.value.trim();
+            const refs = parseBibleRefInput(passageStr);
+
+            if (refs.length === 0) {
+                biblePreviewList.innerHTML = `<span style="color:#888;">(성경 본문을 인식하지 못했거나 올바른 장·절 형식이 아닙니다. 예: 요한복음 16:5-7)</span>`;
+                return;
+            }
+
+            const bibleData = await fetchBibleData();
+
+            let html = '';
+            refs.forEach(r => {
+                const chapterSuffix = r.bookShort === "시" ? "편" : "장";
+                const refTitle = `${r.bookFull} ${r.chapter}${chapterSuffix} ${r.verse}절`;
+                
+                let verseContent = "";
+                if (bibleData && bibleData[r.bookShort] && bibleData[r.bookShort][r.chapter] && bibleData[r.bookShort][r.chapter][r.verse]) {
+                    verseContent = bibleData[r.bookShort][r.chapter][r.verse];
+                } else {
+                    verseContent = "(성경 DB에서 구절 텍스트 로딩 중 또는 구절 없음)";
+                }
+
+                html += `
+                    <div style="margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px dashed #eee;">
+                        <span style="font-weight: bold; color: #1e8449;">📖 ${escapeHtml(refTitle)}</span><br>
+                        <span style="color: #2c3e50; font-size: 0.9rem;">${escapeHtml(verseContent)}</span>
+                    </div>
+                `;
+            });
+
+            biblePreviewList.innerHTML = html;
+        }
+
+        const biblePassageInput = document.getElementById('biblePassageInput');
+        if (biblePassageInput) {
+            biblePassageInput.addEventListener('input', updateBiblePreviewUI);
+        }
+
+        const downloadBiblePptxBtn = document.getElementById('downloadBiblePptxBtn');
+        const bibleTemplateFileInput = document.getElementById('bibleTemplateFileInput');
+        const bibleThemeSelect = document.getElementById('bibleThemeSelect');
+
+        downloadBiblePptxBtn.addEventListener('click', async function() {
+            try {
+                downloadBiblePptxBtn.disabled = true;
+                downloadBiblePptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 성경자막 PPTX 생성 중...';
+
+                const passageStr = biblePassageInput ? biblePassageInput.value.trim() : '';
+                const refs = parseBibleRefInput(passageStr);
+
+                if (refs.length === 0) {
+                    throw new Error("올바른 성경 구절을 입력하거나 지정해주세요. (예: 요한복음 16:5-7)");
+                }
+
+                const bibleData = await fetchBibleData();
+                const resolvedVerses = refs.map(r => {
+                    const chapterSuffix = r.bookShort === "시" ? "편" : "장";
+                    let content = "";
+                    if (bibleData && bibleData[r.bookShort] && bibleData[r.bookShort][r.chapter] && bibleData[r.bookShort][r.chapter][r.verse]) {
+                        content = bibleData[r.bookShort][r.chapter][r.verse];
+                    } else {
+                        content = `${r.bookFull} ${r.chapter}${chapterSuffix} ${r.verse}절 구절 내용`;
+                    }
+                    return {
+                        book: r.bookFull,
+                        bookShort: r.bookShort,
+                        chapter: r.chapter,
+                        verse: r.verse,
+                        content: content
+                    };
+                });
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const cleanPassageName = passageStr.replace(/[\s:~\-]+/g, '_');
+                const outputFileName = `${year}-${month}-${day}_성경봉독_${cleanPassageName}.pptx`;
+
+                // 1. 커스텀 성경 PPTX 템플릿 파일이 업로드된 경우 -> JSZip 치환 (키워드: (BOOK), (CHAPTER), (VERSE), (CONTENT))
+                if (bibleTemplateFileInput && bibleTemplateFileInput.files && bibleTemplateFileInput.files[0]) {
+                    const templateBuffer = await bibleTemplateFileInput.files[0].arrayBuffer();
+                    const zip = await JSZip.loadAsync(templateBuffer);
+
+                    let presentationXml = await zip.file("ppt/presentation.xml").async("string");
+                    let presentationRelsXml = await zip.file("ppt/_rels/presentation.xml.rels").async("string");
+                    let contentTypesXml = await zip.file("[Content_Types].xml").async("string");
+
+                    const baseSlideXml = await zip.file("ppt/slides/slide1.xml").async("string");
+                    let baseSlideRelsXml = "";
+                    if (zip.file("ppt/slides/_rels/slide1.xml.rels")) {
+                        baseSlideRelsXml = await zip.file("ppt/slides/_rels/slide1.xml.rels").async("string");
+                    }
+
+                    let sldIdLstContent = "";
+                    let relsContent = "";
+                    let contentTypesOverrides = "";
+
+                    resolvedVerses.forEach((item, index) => {
+                        const slideIndex = index + 2;
+                        const rId = `rIdBibleSlide${slideIndex}`;
+                        const sldId = 256 + index + 1;
+                        const chapterSuffix = item.bookShort === "시" ? "편" : "장";
+
+                        let slideXml = baseSlideXml;
+                        try {
+                            const parser = new DOMParser();
+                            const xmlDoc = parser.parseFromString(slideXml, "application/xml");
+                            const paragraphs = xmlDoc.getElementsByTagName("a:p");
+
+                            for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
+                                const p = paragraphs[pIdx];
+                                const tElements = p.getElementsByTagName("a:t");
+                                if (tElements.length === 0) continue;
+
+                                let paragraphText = "";
+                                for (let tIdx = 0; tIdx < tElements.length; tIdx++) {
+                                    paragraphText += tElements[tIdx].textContent;
+                                }
+
+                                if (/\(BOOK\)|\(CHAPTER\)|\(VERSE\)|\(CONTENT\)/gi.test(paragraphText)) {
+                                    let replaced = paragraphText
+                                        .replace(/\(BOOK\)/gi, item.book)
+                                        .replace(/\(CHAPTER\)/gi, `${item.chapter}${chapterSuffix}`)
+                                        .replace(/\(VERSE\)/gi, `${item.verse}절`)
+                                        .replace(/\(CONTENT\)/gi, item.content);
+
+                                    tElements[0].textContent = replaced;
+                                    for (let tIdx = 1; tIdx < tElements.length; tIdx++) {
+                                        tElements[tIdx].textContent = "";
+                                    }
+                                }
+                            }
+                            const serializer = new XMLSerializer();
+                            slideXml = serializer.serializeToString(xmlDoc);
+                        } catch (domErr) {
+                            slideXml = slideXml
+                                .replace(/\(BOOK\)/gi, item.book)
+                                .replace(/\(CHAPTER\)/gi, `${item.chapter}${chapterSuffix}`)
+                                .replace(/\(VERSE\)/gi, `${item.verse}절`)
+                                .replace(/\(CONTENT\)/gi, item.content);
+                        }
+
+                        zip.file(`ppt/slides/slide${slideIndex}.xml`, slideXml);
+                        if (baseSlideRelsXml) {
+                            zip.file(`ppt/slides/_rels/slide${slideIndex}.xml.rels`, baseSlideRelsXml);
+                        }
+
+                        sldIdLstContent += `<p:sldId id="${sldId}" r:id="${rId}"/>`;
+                        relsContent += `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${slideIndex}.xml"/>`;
+                        contentTypesOverrides += `<Override PartName="/ppt/slides/slide${slideIndex}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`;
+                    });
+
+                    presentationXml = presentationXml.replace(/<p:sldIdLst>([\s\S]*?)<\/p:sldIdLst>/, (match, inner) => `<p:sldIdLst>${inner}${sldIdLstContent}</p:sldIdLst>`);
+                    presentationRelsXml = presentationRelsXml.replace(/<\/Relationships>/, `${relsContent}</Relationships>`);
+                    contentTypesXml = contentTypesXml.replace(/<\/Types>/, `${contentTypesOverrides}</Types>`);
+
+                    if (resolvedVerses.length > 0) {
+                        presentationXml = presentationXml.replace(/<p:sldIdLst>([\s\S]*?)<\/p:sldIdLst>/, (match, inner) => `<p:sldIdLst>${inner.replace(/<p:sldId[^>]*?\/>/, "")}</p:sldIdLst>`);
+                    }
+
+                    zip.file("ppt/presentation.xml", presentationXml);
+                    zip.file("ppt/_rels/presentation.xml.rels", presentationRelsXml);
+                    zip.file("[Content_Types].xml", contentTypesXml);
+
+                    const blob = await zip.generateAsync({
+                        type: 'blob',
+                        mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                    });
+
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = outputFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    showToast(`${outputFileName} 성경자막 다운로드가 완료되었습니다!`);
+                } else {
+                    // 2. PptxGenJS 기반 자동 슬라이드 생성
+                    const pptxClass = window.PptxGenJS || window.pptxgen;
+                    if (!pptxClass) {
+                        throw new Error("PptxGenJS 라이브러리를 불러오지 못했습니다. 네트워크 연결을 확인해주세요.");
+                    }
+
+                    const selectedThemeKey = bibleThemeSelect ? bibleThemeSelect.value : "classic-alabaster";
+                    const theme = BIBLE_THEMES[selectedThemeKey] || BIBLE_THEMES["classic-alabaster"];
+
+                    const pptx = new pptxClass();
+                    pptx.layout = "LAYOUT_16x9";
+
+                    resolvedVerses.forEach(item => {
+                        const slide = pptx.addSlide();
+                        slide.background = { color: theme.bgColor };
+
+                        const chapterSuffix = item.bookShort === "시" ? "편" : "장";
+                        const refText = `${item.book} ${item.chapter}${chapterSuffix} ${item.verse}절`;
+
+                        slide.addText(refText, {
+                            x: 1.0,
+                            y: 0.8,
+                            w: "80%",
+                            h: 0.6,
+                            fontSize: 18,
+                            fontFace: theme.fontFamily,
+                            color: theme.accentColor,
+                            bold: true,
+                            align: "left"
+                        });
+
+                        slide.addShape(pptx.shapes.RECTANGLE, {
+                            x: 1.0,
+                            y: 1.4,
+                            w: 11.3,
+                            h: 0.02,
+                            fill: { color: theme.accentColor }
+                        });
+
+                        slide.addText(item.content, {
+                            x: 1.0,
+                            y: 2.0,
+                            w: 11.3,
+                            h: 4.2,
+                            fontSize: theme.fontSize,
+                            fontFace: theme.fontFamily,
+                            color: theme.fontColor,
+                            align: "center",
+                            valign: "middle",
+                            lineSpacing: 42,
+                            bold: true
+                        });
+                    });
+
+                    await pptx.writeFile({ fileName: outputFileName });
+                    showToast(`${outputFileName} 성경자막 다운로드가 완료되었습니다!`);
+                }
+            } catch (err) {
+                console.error('[Bible PPTX Error]:', err);
+                alert(`🚨 성경자막 PPTX 생성 실패: ${err.message}`);
+            } finally {
+                downloadBiblePptxBtn.disabled = false;
+                downloadBiblePptxBtn.innerHTML = '<i class="fa-solid fa-file-powerpoint" style="font-size: 1.3rem;"></i> <span>성경봉독 자막 PPTX 생성 및 다운로드</span>';
+            }
+        });
 
         // 하위 호환용 alias
         const render15RulesUI = renderRulesUI;
