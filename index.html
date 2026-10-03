@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>주보 OCR & 15가지 정보 파서 (Naver CLOVA OCR API)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { 
             font-family: 'Segoe UI', Pretendard, Tahoma, Geneva, Verdana, sans-serif; 
@@ -187,6 +188,43 @@
             display: none;
             z-index: 1000;
         }
+
+        /* PPTX Review Form Grid Styles */
+        .pptx-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        @media (max-width: 650px) {
+            .pptx-form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .pptx-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .pptx-form-group label {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #495057;
+        }
+        .pptx-form-group input {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            color: #1864ab;
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .pptx-form-group input:focus {
+            border-color: #d35400;
+            background: #ffffff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(211, 84, 0, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -233,6 +271,37 @@
         </div>
     </div>
 
+    <!-- 3. 주일예배자막 PPTX 자동 생성 및 검토 폼 -->
+    <div class="parsed-section" id="pptxSection" style="display: none; border-top: 4px solid #d35400;">
+        <div class="result-header">
+            <h3><i class="fa-solid fa-file-powerpoint" style="color: #d35400;"></i> [3. 주일예배자막 PPTX 자동 생성 & 검토]</h3>
+        </div>
+
+        <div style="background: #fdfefe; border: 1px solid #d6dbdf; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+            <div style="font-weight: bold; margin-bottom: 8px; color: #2c3e50;">
+                <i class="fa-solid fa-folder-open"></i> PPTX 템플릿 선택
+            </div>
+            <div style="font-size: 0.9rem; color: #566573; margin-bottom: 10px;">
+                기본 템플릿(<code>templates/주일예배자막양식.pptx</code>)을 사용하거나 커스텀 템플릿 파일(.pptx)을 지정할 수 있습니다.
+            </div>
+            <input type="file" id="templateFileInput" accept=".pptx" style="font-size: 0.9rem;">
+            <span id="templateStatus" style="margin-left: 10px; font-size: 0.85rem; color: #27ae60; font-weight: bold;">
+                <i class="fa-solid fa-circle-check"></i> 기본 템플릿 사용 준비됨
+            </span>
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 12px; color: #2c3e50;">
+            <i class="fa-solid fa-pen-to-square"></i> 치환 데이터 검토 및 수정 (1번 ~ 13번)
+        </div>
+        <div class="pptx-form-grid" id="pptxFormGrid">
+        </div>
+
+        <button id="downloadPptxBtn" style="background-color: #d35400; font-size: 1.1rem; padding: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px;">
+            <i class="fa-solid fa-file-arrow-down" style="font-size: 1.3rem;"></i> 
+            <span>자막 PPTX 생성 및 다운로드</span>
+        </button>
+    </div>
+
     <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
 
     <script>
@@ -250,6 +319,25 @@
         const sundayTypeBanner = document.getElementById('sundayTypeBanner');
         const sundayBadge = document.getElementById('sundayBadge');
         const sundayDesc = document.getElementById('sundayDesc');
+
+        const pptxSection = document.getElementById('pptxSection');
+        const pptxFormGrid = document.getElementById('pptxFormGrid');
+        const templateFileInput = document.getElementById('templateFileInput');
+        const templateStatus = document.getElementById('templateStatus');
+        const downloadPptxBtn = document.getElementById('downloadPptxBtn');
+
+        templateFileInput.addEventListener('change', function() {
+            if (templateFileInput.files && templateFileInput.files[0]) {
+                templateStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#2980b9;"></i> 커스텀 템플릿 (${escapeHtml(templateFileInput.files[0].name)}) 적용됨`;
+            } else {
+                templateStatus.innerHTML = `<i class="fa-solid fa-circle-check"></i> 기본 템플릿 사용 준비됨`;
+            }
+        });
+
+        function cleanPreacherName(val) {
+            if (!val) return "";
+            return val.replace(/[\s]*(담임목사|목사|전도사|강도사|장로|집사|권사)$/g, '').trim();
+        }
 
         let selectedFile = null;
         let selectedBase64 = null;
@@ -467,14 +555,19 @@
                 togetherJson.sundayType = currentSundayType;
 
                 const ruleDefs = [
-                    { id: 1, label: "설교자 (preacher)", value: togetherJson.preacher },
-                    { id: 2, label: "대표기도 (prayer)", value: togetherJson.prayer },
-                    { id: 3, label: "성경봉독 본문 (scripturePassage)", value: togetherJson.scripturePassage },
-                    { id: 4, label: "성경봉독 담당자 (scriptureReader)", value: togetherJson.scriptureReader },
-                    { id: 5, label: "설교 전 찬양 곡명 (specialPraiseTitle)", value: togetherJson.specialPraiseTitle },
-                    { id: 6, label: "설교 전 찬양 담당 (specialPraisePerformer)", value: togetherJson.specialPraisePerformer },
-                    { id: 7, label: "설교 제목 (sermonTitle)", value: togetherJson.sermonTitle },
-                    { id: 8, label: "설교후 찬양 (praiseAfterSermon)", value: togetherJson.praiseAfterSermon }
+                    { id: 1, label: "설교자", value: togetherJson.preacher },
+                    { id: 2, label: "첫번째 찬송 [2부]", value: "" },
+                    { id: 3, label: "성시교독 [2부]", value: "" },
+                    { id: 4, label: "두번째 찬송 [2부]", value: "" },
+                    { id: 5, label: "대표기도자 [1부]", value: togetherJson.prayer },
+                    { id: 6, label: "대표기도자 [2부]", value: togetherJson.prayer },
+                    { id: 7, label: "성경봉독 담당자 [1부]", value: togetherJson.scriptureReader },
+                    { id: 8, label: "성경봉독 담당자 [2부]", value: togetherJson.scriptureReader },
+                    { id: 9, label: "성경봉독 본문", value: togetherJson.scripturePassage },
+                    { id: 10, label: "찬양대(2부) 찬양 곡명", value: (togetherJson.specialPraiseTitle && togetherJson.specialPraiseTitle !== "-없음-") ? togetherJson.specialPraiseTitle : "" },
+                    { id: 11, label: "설교 제목", value: togetherJson.sermonTitle },
+                    { id: 12, label: "설교후 찬양 [1부]", value: togetherJson.praiseAfterSermon },
+                    { id: 13, label: "설교후 찬양 [2부]", value: togetherJson.praiseAfterSermon }
                 ];
 
                 last15Results = ruleDefs;
@@ -956,10 +1049,213 @@
                 ruleList.appendChild(item);
             });
             parsedSection.style.display = 'block';
+
+            // PPTX 검토 폼 렌더링 (1번 ~ 13번)
+            pptxFormGrid.innerHTML = '';
+            const labels = [
+                "1. 설교자 이름 ({1번} - 직분 제외)",
+                "2. 첫번째 찬송 [2부] ({2번})",
+                "3. 성시교독 [2부] ({3번})",
+                "4. 두번째 찬송 [2부] ({4번})",
+                "5. 대표기도자 [1부] ({5번})",
+                "6. 대표기도자 [2부] ({6번})",
+                "7. 성경봉독 담당자 [1부] ({7번})",
+                "8. 성경봉독 담당자 [2부] ({8번})",
+                "9. 성경봉독 본문 ({9번})",
+                "10. 찬양대(2부) 찬양 곡명 ({10번})",
+                "11. 설교 제목 ({11번})",
+                "12. 설교후 찬양 [1부] ({12번})",
+                "13. 설교후 찬양 [2부] ({13번})"
+            ];
+
+            for (let i = 1; i <= 13; i++) {
+                const def = ruleDefs.find(r => r.id === i);
+                let rawVal = def ? def.value || '' : '';
+                if (i === 1) {
+                    rawVal = cleanPreacherName(rawVal);
+                }
+
+                const group = document.createElement('div');
+                group.className = 'pptx-form-group';
+                group.innerHTML = `
+                    <label for="pptx_input_${i}">${labels[i - 1]}</label>
+                    <input type="text" id="pptx_input_${i}" value="${escapeHtml(rawVal)}" placeholder="내용 입력">
+                `;
+                pptxFormGrid.appendChild(group);
+            }
+
+            pptxSection.style.display = 'block';
         }
 
         // 하위 호환용 alias
         const render15RulesUI = renderRulesUI;
+
+        // ===================================================
+        // PPTX 생성 및 서식 보존 치환 다운로드 핸들러
+        // ===================================================
+        downloadPptxBtn.addEventListener('click', async function() {
+            try {
+                downloadPptxBtn.disabled = true;
+                downloadPptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 자막 PPTX 생성 중...';
+
+                // 1. 1번~13번 입력값 및 전처리 맵 구축
+                const pptxData = {};
+                for (let i = 1; i <= 13; i++) {
+                    const inputEl = document.getElementById(`pptx_input_${i}`);
+                    let val = inputEl ? inputEl.value.trim() : '';
+                    if (i === 1) {
+                        val = cleanPreacherName(val);
+                    }
+                    pptxData[`${i}번`] = val;
+                }
+
+                // 2. 템플릿 ArrayBuffer 확보 (업로드 파일 OR default fetch)
+                let arrayBuffer = null;
+                if (templateFileInput.files && templateFileInput.files[0]) {
+                    arrayBuffer = await templateFileInput.files[0].arrayBuffer();
+                } else {
+                    const templateCandidates = ['/templates/주일예배자막양식.pptx', './templates/주일예배자막양식.pptx', 'templates/주일예배자막양식.pptx'];
+                    for (let tPath of templateCandidates) {
+                        try {
+                            const res = await fetch(tPath);
+                            if (res.ok) {
+                                arrayBuffer = await res.arrayBuffer();
+                                break;
+                            }
+                        } catch (e) {}
+                    }
+                    if (!arrayBuffer) {
+                        throw new Error("기본 PPTX 템플릿(templates/주일예배자막양식.pptx)을 불러올 수 없습니다. [PPTX 템플릿 선택]에서 파일(.pptx)을 업로드해주세요.");
+                    }
+                }
+
+                // 3. JSZip 압축 해제
+                const zip = await JSZip.loadAsync(arrayBuffer);
+
+                // 4. ppt/slides/slide*.xml 파일 순회 탐색
+                const slideFiles = Object.keys(zip.files).filter(fileName => 
+                    fileName.startsWith('ppt/slides/slide') && fileName.endsWith('.xml')
+                );
+
+                const parser = new DOMParser();
+                const serializer = new XMLSerializer();
+
+                for (const fileName of slideFiles) {
+                    const xmlText = await zip.files[fileName].async('string');
+                    const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+                    
+                    let isModified = false;
+                    const pNodes = xmlDoc.getElementsByTagName('a:p');
+
+                    for (let i = 0; i < pNodes.length; i++) {
+                        const p = pNodes[i];
+                        
+                        // 단락 내 모든 <a:r> 수집 (Run splitting 대응)
+                        const runs = [];
+                        const walk = (node) => {
+                            for (let child of node.childNodes) {
+                                if (child.nodeType === 1) {
+                                    const localName = child.localName || child.tagName.split(':').pop();
+                                    if (localName === 'r') {
+                                        runs.push(child);
+                                    } else {
+                                        walk(child);
+                                    }
+                                }
+                            }
+                        };
+                        walk(p);
+
+                        if (runs.length === 0) continue;
+
+                        // 단락 전체 텍스트 결합
+                        let fullText = '';
+                        const runTextNodes = [];
+                        runs.forEach(r => {
+                            let tNode = null;
+                            for (let child of r.childNodes) {
+                                if (child.nodeType === 1) {
+                                    const localName = child.localName || child.tagName.split(':').pop();
+                                    if (localName === 't') {
+                                        tNode = child;
+                                        break;
+                                    }
+                                }
+                            }
+                            runTextNodes.push(tNode);
+                            if (tNode && tNode.textContent) {
+                                fullText += tNode.textContent;
+                            }
+                        });
+
+                        // {N번} 치환 대상 매칭 검사
+                        if (/\{(\d+)번\}/.test(fullText)) {
+                            const replacedText = fullText.replace(/\{(\d+)번\}/g, (match, numStr) => {
+                                const key = `${numStr}번`;
+                                return pptxData.hasOwnProperty(key) ? pptxData[key] : match;
+                            });
+
+                            // 첫 번째 Run의 <a:t> 서식 유지 주입
+                            let firstTNode = runTextNodes.find(t => t !== null);
+                            if (!firstTNode) {
+                                const firstRun = runs[0];
+                                const nsURI = firstRun.namespaceURI || "http://schemas.openxmlformats.org/drawingml/2006/main";
+                                const prefix = firstRun.prefix ? firstRun.prefix + ":" : "a:";
+                                firstTNode = xmlDoc.createElementNS(nsURI, prefix + "t");
+                                firstRun.appendChild(firstTNode);
+                            }
+
+                            firstTNode.textContent = replacedText;
+
+                            // 분절된 나머지 Run 들의 <a:t> 텍스트를 비워 서식 및 레이아웃 보존
+                            for (let rIdx = 0; rIdx < runTextNodes.length; rIdx++) {
+                                const tNode = runTextNodes[rIdx];
+                                if (tNode && tNode !== firstTNode) {
+                                    tNode.textContent = "";
+                                }
+                            }
+
+                            isModified = true;
+                        }
+                    }
+
+                    if (isModified) {
+                        const newXmlText = serializer.serializeToString(xmlDoc);
+                        zip.file(fileName, newXmlText);
+                    }
+                }
+
+                // 5. Blob 생성 및 YYYY-MM-DD_주일예배자막.pptx 다운로드 트리거
+                const blob = await zip.generateAsync({
+                    type: 'blob',
+                    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                });
+
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const fileName = `${year}-${month}-${day}_주일예배자막.pptx`;
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast(`${fileName} 다운로드가 완료되었습니다!`);
+
+            } catch (err) {
+                console.error('[PPTX Generation Error]:', err);
+                alert(`PPTX 생성 오류: ${err.message}`);
+            } finally {
+                downloadPptxBtn.disabled = false;
+                downloadPptxBtn.innerHTML = '<i class="fa-solid fa-file-arrow-down" style="font-size: 1.3rem;"></i> <span>자막 PPTX 생성 및 다운로드</span>';
+            }
+        });
 
         function escapeHtml(text) {
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
