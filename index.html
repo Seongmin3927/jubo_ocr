@@ -112,6 +112,7 @@
             text-align: center;
             margin-bottom: 24px;
             position: relative;
+            z-index: 1000;
         }
         .header-top-row {
             display: flex;
@@ -119,6 +120,7 @@
             justify-content: center;
             position: relative;
             margin-bottom: 12px;
+            min-height: 38px;
         }
         .brand-badge {
             display: inline-flex;
@@ -149,12 +151,13 @@
             color: #94a3b8;
         }
 
-        /* Theme Option Menu in Header */
+        /* Theme Option Menu in Header (좌측 상단 배치 및 타 UI 최상위 오버레이 보장) */
         .theme-menu-wrap {
             position: absolute;
-            right: 0;
+            left: 0;
             top: 50%;
             transform: translateY(-50%);
+            z-index: 1100;
         }
         @media (max-width: 680px) {
             .header-top-row {
@@ -198,19 +201,27 @@
         }
         .ambient-dropdown {
             position: absolute;
-            top: calc(100% + 8px);
-            right: 0;
-            width: 290px;
-            background: rgba(15, 23, 42, 0.94);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            top: calc(100% + 10px);
+            left: 0;
+            width: 320px;
+            background: rgba(15, 23, 42, 0.97);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.22);
             border-radius: 16px;
-            padding: 16px;
-            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 20px var(--theme-accent-subtle);
-            z-index: 1000;
+            padding: 18px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 30px var(--theme-accent-subtle);
+            z-index: 999999;
             text-align: left;
             animation: fadeInSlideDown 0.25s ease forwards;
+        }
+        @media (max-width: 680px) {
+            .ambient-dropdown {
+                left: 50%;
+                transform: translateX(-50%);
+                width: calc(100vw - 32px);
+                max-width: 320px;
+            }
         }
         @keyframes fadeInSlideDown {
             from { opacity: 0; transform: translateY(-8px); }
@@ -219,13 +230,27 @@
         .ambient-dropdown-header {
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.88rem;
+            justify-content: space-between;
+            font-size: 0.9rem;
             font-weight: 700;
             color: #f1f5f9;
-            margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .btn-close-ambient {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.95rem;
+            cursor: pointer;
+            padding: 3px 6px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+        }
+        .btn-close-ambient:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.14);
         }
         .ambient-dropdown-desc {
             font-size: 0.78rem;
@@ -898,8 +923,26 @@
             box-shadow: 0 12px 24px rgba(0, 0, 0, 0.07);
         }
         .hub-card-orange { border-top: 5px solid #ea580c; }
+        .hub-card-orange .hub-card-tag {
+            color: #c2410c;
+            background: #ffedd5;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
         .hub-card-purple { border-top: 5px solid #9333ea; }
+        .hub-card-purple .hub-card-tag {
+            color: #7e22ce;
+            background: #f3e8ff;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
         .hub-card-green { border-top: 5px solid #059669; }
+        .hub-card-green .hub-card-tag {
+            color: #047857;
+            background: #d1fae5;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
 
         .hub-card-header {
             display: flex;
@@ -1080,23 +1123,40 @@
             transform: none;
         }
         .btn-orange { 
-            background: linear-gradient(135deg, var(--theme-accent, #ea580c), var(--theme-accent-hover, #c2410c)); 
-            box-shadow: 0 4px 14px var(--theme-accent-glow, rgba(234, 88, 12, 0.3)); 
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%); 
+            box-shadow: 0 4px 16px rgba(234, 88, 12, 0.42), 0 0 12px rgba(249, 115, 22, 0.25); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
             transition: all 0.2s ease;
+        }
+        .btn-orange:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
+            box-shadow: 0 8px 24px rgba(234, 88, 12, 0.58), 0 0 16px rgba(249, 115, 22, 0.4);
+            filter: brightness(1.04);
         }
         .btn-purple { 
-            background: linear-gradient(135deg, var(--theme-secondary, #9333ea), #7e22ce); 
-            box-shadow: 0 4px 14px var(--theme-secondary-glow, rgba(147, 51, 234, 0.3)); 
+            background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%); 
+            box-shadow: 0 4px 16px rgba(147, 51, 234, 0.42), 0 0 12px rgba(168, 85, 247, 0.25); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
             transition: all 0.2s ease;
+        }
+        .btn-purple:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #c084fc 0%, #a855f7 50%, #9333ea 100%);
+            box-shadow: 0 8px 24px rgba(147, 51, 234, 0.58), 0 0 16px rgba(168, 85, 247, 0.4);
+            filter: brightness(1.04);
         }
         .btn-green  { 
-            background: linear-gradient(135deg, #059669, #047857); 
-            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); 
+            background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); 
+            box-shadow: 0 4px 16px rgba(5, 150, 105, 0.42), 0 0 12px rgba(16, 185, 129, 0.25); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
             transition: all 0.2s ease;
         }
-        .btn-orange:hover:not(:disabled), .btn-purple:hover:not(:disabled), .btn-green:hover:not(:disabled) {
+        .btn-green:hover:not(:disabled) {
             transform: translateY(-2px);
-            filter: brightness(1.08);
+            background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
+            box-shadow: 0 8px 24px rgba(5, 150, 105, 0.58), 0 0 16px rgba(16, 185, 129, 0.4);
+            filter: brightness(1.04);
         }
 
         .btn-reset-work {
@@ -1404,7 +1464,12 @@
                 </button>
                 <div id="ambientDropdown" class="ambient-dropdown" style="display: none;">
                     <div class="ambient-dropdown-header">
-                        <i class="fa-solid fa-palette"></i> 엠비언트 테마 엔진
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-palette"></i> <span>엠비언트 테마 엔진</span>
+                        </div>
+                        <button type="button" class="btn-close-ambient" onclick="document.getElementById('ambientDropdown').style.display='none'" title="닫기">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
                     <div class="ambient-dropdown-body">
                         <p class="ambient-dropdown-desc">주보 이미지의 색감을 실시간 추출하여 Apple Music / Spotify 스타일 글로우 테마를 연출합니다.</p>
@@ -1616,7 +1681,7 @@
                     </div>
 
                     <button id="downloadPptxBtn" class="btn-hub-download btn-orange">
-                        <i class="fa-solid fa-file-arrow-down"></i> <span>자막 PPTX 다운로드</span>
+                        <i class="fa-solid fa-file-arrow-down"></i> <span>자막 PPTX 생성 및 다운로드</span>
                     </button>
                 </div>
 
