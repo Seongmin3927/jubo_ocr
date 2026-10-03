@@ -210,10 +210,10 @@
             <h3><i class="fa-solid fa-file-lines"></i> [1. CLOVA OCR 원본 추출 결과]</h3>
             <button id="copyBtn" class="btn-copy" style="display: none;"><i class="fa-solid fa-copy"></i> 원본 텍스트 복사</button>
         </div>
-        <textarea id="resultText" placeholder="추출된 원본 텍스트가 여기에 표시됩니다. 바로 수정 후 15가지 정보를 다시 추출할 수 있습니다." readonly></textarea>
+        <textarea id="resultText" placeholder="추출된 원본 텍스트가 여기에 표시됩니다. 바로 수정 후 13가지 정보를 다시 추출할 수 있습니다." readonly></textarea>
     </div>
 
-    <!-- 2. 15가지 지정 추출 정보 및 주일 구분 -->
+    <!-- 2. 13가지 지정 추출 정보 및 주일 구분 -->
     <div class="parsed-section" id="parsedSection" style="display: none;">
         
         <!-- 주일 구분 판단 배너 -->
@@ -226,8 +226,8 @@
         </div>
 
         <div class="result-header">
-            <h3><i class="fa-solid fa-list-check"></i> [2. 15가지 지정 추출 정보]</h3>
-            <button id="copy15Btn" class="btn-copy"><i class="fa-solid fa-copy"></i> 15가지 결과 전체 복사</button>
+            <h3><i class="fa-solid fa-list-check"></i> [2. 13가지 지정 추출 정보]</h3>
+            <button id="copy15Btn" class="btn-copy"><i class="fa-solid fa-copy"></i> 13가지 결과 전체 복사</button>
         </div>
         <div class="rule-list" id="ruleList">
         </div>
@@ -341,7 +341,7 @@
             if (!last15Results.length) return;
             const headerText = `[주일 구분: ${currentSundayType}]\n\n`;
             const textToCopy = headerText + last15Results.map(r => `${r.id}. ${r.label}: ${r.value || '(인식 실패/없음)'}`).join('\n');
-            navigator.clipboard.writeText(textToCopy).then(() => showToast("주일 구분 및 15가지 추출 결과가 복사되었습니다!"));
+            navigator.clipboard.writeText(textToCopy).then(() => showToast("주일 구분 및 13가지 추출 결과가 복사되었습니다!"));
         });
 
         function showToast(msg) {
@@ -439,24 +439,7 @@
                 r4 = lines[r4LineIndex + 1].trim();
             }
 
-            // --- 5번: 봉헌 [1부] & 6번: 봉헌 [2부] ---
-            let r5 = '', r6 = '';
-            let r5LineIndex = lines.findIndex(l => l.includes('봉헌'));
-            if (r5LineIndex !== -1 && r5LineIndex + 1 < lines.length) {
-                const targetLine = lines[r5LineIndex + 1];
-                if (targetLine.includes('1부:')) {
-                    const after1 = targetLine.split('1부:')[1] || '';
-                    r5 = getUntilSlash(after1);
-                }
-                if (targetLine.includes('2부:')) {
-                    const after2 = targetLine.split('2부:')[1] || '';
-                    r6 = after2.trim();
-                }
-            }
-
-            // --- 7번: 대표기도자 [1부] & 8번: 대표기도자 [2부] ---
-            // 7번: "대표기도" 텍스트 탐색 -> 다음 행에서 "1부: " 텍스트 이후 ~ "/" 이전까지
-            // 8번: 7번과 동일한 행에서 "/ 2부: " 텍스트 이후 ~ 행 바꾸기 전까지
+            // --- 5번: 대표기도자 [1부] & 6번: 대표기도자 [2부] ---
             let r7 = '', r8 = '';
             let r7LineIndex = lines.findIndex(l => l.includes('대표기도'));
             if (r7LineIndex !== -1 && r7LineIndex + 1 < lines.length) {
@@ -471,9 +454,7 @@
                 }
             }
 
-            // --- 10번: 성경봉독 담당자 [1부] & 11번: 성경봉독 담당자 [2부] ---
-            // 10번: 8번에 출력한 값의 바로 다음 행에서 "1부: " 텍스트 탐색 -> "/" 이전까지
-            // 11번: 10번과 동일한 행에서 "/ 2부: " 텍스트 탐색 -> 행 바꾸기 전까지
+            // --- 7번: 성경봉독 담당자 [1부] & 8번: 성경봉독 담당자 [2부] ---
             let r10 = '', r11 = '';
             let r10LineIndex = -1;
             if (r7LineIndex !== -1 && r7LineIndex + 2 < lines.length) {
@@ -495,7 +476,6 @@
             }
 
             // --- 9번: 성경봉독 본문 ---
-            // 11번 출력값 바로 다음 행의 모든 텍스트 출력
             let r9 = '';
             let r9LineIndex = -1;
             if (r10LineIndex !== -1 && r10LineIndex + 1 < lines.length) {
@@ -503,8 +483,7 @@
                 r9 = lines[r9LineIndex].trim();
             }
 
-            // --- 12번: 찬양대(2부) 찬양 곡명 ---
-            // 9번 텍스트 바로 다음행의 모든 텍스트 출력
+            // --- 10번: 찬양대(2부) 찬양 곡명 ---
             let r12 = '';
             let r12LineIndex = -1;
             if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
@@ -512,8 +491,7 @@
                 r12 = lines[r12LineIndex].trim();
             }
 
-            // --- 13번: 설교 제목 ---
-            // 12번 출력값의 다음 다음 다음 행의 모든 텍스트 출력
+            // --- 11번: 설교 제목 ---
             let r13 = '';
             let r13LineIndex = -1;
             if (r12LineIndex !== -1 && r12LineIndex + 3 < lines.length) {
@@ -521,9 +499,7 @@
                 r13 = lines[r13LineIndex].trim();
             }
 
-            // --- 14번: 설교후 찬양 [1부] & 15번: 설교후 찬양 [2부] ---
-            // 14번: 13번 출력값의 다음 다음 다음 행에서 "1부: " 탐색 -> "/" 이전까지
-            // 15번: 14번 출력값과 같은 행에서 "/ 2부: " 탐색 -> 행 바꾸기 전까지
+            // --- 12번: 설교후 찬양 [1부] & 13번: 설교후 찬양 [2부] ---
             let r14 = '', r15 = '';
             let r14LineIndex = -1;
             if (r13LineIndex !== -1 && r13LineIndex + 3 < lines.length) {
@@ -549,17 +525,15 @@
                 { id: 2, label: "첫번째 찬송 [2부]", value: r2 },
                 { id: 3, label: "성시교독 [2부]", value: r3 },
                 { id: 4, label: "두번째 찬송 [2부]", value: r4 },
-                { id: 5, label: "봉헌 [1부]", value: r5 },
-                { id: 6, label: "봉헌 [2부]", value: r6 },
-                { id: 7, label: "대표기도자 [1부]", value: r7 },
-                { id: 8, label: "대표기도자 [2부]", value: r8 },
+                { id: 5, label: "대표기도자 [1부]", value: r7 },
+                { id: 6, label: "대표기도자 [2부]", value: r8 },
+                { id: 7, label: "성경봉독 담당자 [1부]", value: r10 },
+                { id: 8, label: "성경봉독 담당자 [2부]", value: r11 },
                 { id: 9, label: "성경봉독 본문", value: r9 },
-                { id: 10, label: "성경봉독 담당자 [1부]", value: r10 },
-                { id: 11, label: "성경봉독 담당자 [2부]", value: r11 },
-                { id: 12, label: "찬양대(2부) 찬양 곡명", value: r12 },
-                { id: 13, label: "설교 제목", value: r13 },
-                { id: 14, label: "설교후 찬양 [1부]", value: r14 },
-                { id: 15, label: "설교후 찬양 [2부]", value: r15 }
+                { id: 10, label: "찬양대(2부) 찬양 곡명", value: r12 },
+                { id: 11, label: "설교 제목", value: r13 },
+                { id: 12, label: "설교후 찬양 [1부]", value: r14 },
+                { id: 13, label: "설교후 찬양 [2부]", value: r15 }
             ];
 
             last15Results = ruleDefs;
