@@ -1076,27 +1076,6 @@
                 }
             }
 
-            // --- 7번: 성경봉독 담당자 [1부] & 8번: 성경봉독 담당자 [2부] ---
-            let r10 = '', r11 = '';
-            let r10LineIndex = -1;
-            if (r7LineIndex !== -1 && r7LineIndex + 2 < lines.length) {
-                r10LineIndex = r7LineIndex + 2;
-            } else {
-                r10LineIndex = lines.findIndex((l, idx) => idx > r7LineIndex && (l.includes('1부:') || l.includes('성경봉독')));
-            }
-
-            if (r10LineIndex !== -1 && r10LineIndex < lines.length) {
-                const targetLine = lines[r10LineIndex];
-                if (targetLine.includes('1부:')) {
-                    const after1 = targetLine.split('1부:')[1] || '';
-                    r10 = getUntilSlash(after1);
-                }
-                if (targetLine.includes('2부:')) {
-                    const after2 = targetLine.split('2부:')[1] || '';
-                    r11 = after2.trim();
-                }
-            }
-
             // 66개 성경 책 이름 및 장·절 정규식 패턴
             const bibleRegex = /(창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록)\s*\d+[\s:장]*\d+(?:\s*[-~]\s*\d+)?/;
 
@@ -1112,10 +1091,6 @@
                 }
             }
 
-            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) ---
-            // 1. 9번 출력값이 있는 행의 다음 다음 행 탐색
-            // 2. 해당 행의 모든 텍스트 출력
-            let r12 = '';
             let r9LineIndex = -1;
             if (r9) {
                 r9LineIndex = lines.findIndex(l => l.includes(r9));
@@ -1123,8 +1098,47 @@
             if (r9LineIndex === -1) {
                 r9LineIndex = lines.findIndex(l => l.includes('성경봉독') || l.includes('성경 봉독'));
             }
-            if (r9LineIndex !== -1 && r9LineIndex + 2 < lines.length) {
-                r12 = lines[r9LineIndex + 2].trim();
+
+            // --- 7번: 성경봉독 담당자 [1부] & 8번: 성경봉독 담당자 [2부] ---
+            // 7번: 9번 출력값의 다음 행 탐색 -> "1부: " 다음에 등장하는 첫 텍스트부터 "/" 텍스트 이전까지
+            // 8번: 7번 출력값과 같은 행에서 "/2부: " 텍스트 탐색 -> 이후 등장하는 첫 텍스트부터 행바꾸기 전까지
+            let r10 = '', r11 = '';
+            let r7_8LineIndex = -1;
+            if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
+                r7_8LineIndex = r9LineIndex + 1;
+            } else if (r7LineIndex !== -1 && r7LineIndex + 2 < lines.length) {
+                r7_8LineIndex = r7LineIndex + 2;
+            }
+
+            if (r7_8LineIndex !== -1 && r7_8LineIndex < lines.length) {
+                const targetLine = lines[r7_8LineIndex];
+                if (targetLine.includes('1부:')) {
+                    const after1 = targetLine.split('1부:')[1] || '';
+                    r10 = getUntilSlash(after1).trim();
+                } else if (targetLine.includes('1부')) {
+                    const after1 = targetLine.split('1부')[1].replace(/^[\s*:]*/, '');
+                    r10 = getUntilSlash(after1).trim();
+                }
+
+                if (targetLine.includes('/2부:')) {
+                    r11 = targetLine.split('/2부:')[1].trim();
+                } else if (targetLine.includes('/ 2부:')) {
+                    r11 = targetLine.split('/ 2부:')[1].trim();
+                } else if (targetLine.includes('2부:')) {
+                    r11 = targetLine.split('2부:')[1].trim();
+                } else if (targetLine.includes('2부')) {
+                    r11 = targetLine.split('2부')[1].replace(/^[\s*:]*/, '').trim();
+                }
+            }
+
+            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) ---
+            // 1) 8번 출력값 다음 다음행 탐색
+            // 2) 해당 행에 있는 모든 텍스트 출력
+            let r12 = '';
+            if (r7_8LineIndex !== -1 && r7_8LineIndex + 2 < lines.length) {
+                r12 = lines[r7_8LineIndex + 2].trim();
+            } else if (r9LineIndex !== -1 && r9LineIndex + 3 < lines.length) {
+                r12 = lines[r9LineIndex + 3].trim();
             }
 
             // --- 11번: 설교 제목 (sermonTitle) ---
