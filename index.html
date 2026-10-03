@@ -415,188 +415,151 @@
                 }
             }
 
-            // --- 규칙 2: "찬송(2부) * " 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
+            // --- 2번: 첫번째 찬송 [2부] ---
             let r2 = '';
-            const lineR2 = lines.find(l => l.includes('찬송(2부) *') || l.includes('찬송(2부)*'));
-            if (lineR2) {
-                const target = lineR2.replace(/.*찬송\(2부\)\s*\*?\s*/, '');
-                r2 = getUntilDoubleSpace(target);
+            let r2LineIndex = lines.findIndex(l => l.includes('찬송(2부)*') || l.includes('찬송(2부) *') || l.includes('찬송(2부)*'));
+            if (r2LineIndex !== -1 && r2LineIndex + 1 < lines.length) {
+                r2 = lines[r2LineIndex + 1].trim();
             }
 
-            // --- 규칙 3: "성시교독(2부)" 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
+            // --- 3번: 성시교독 [2부] ---
             let r3 = '';
-            let r3LineIndex = -1;
-            lines.forEach((l, idx) => {
-                if (l.includes('성시교독(2부)') && r3LineIndex === -1) {
-                    r3LineIndex = idx;
-                    const target = l.replace(/.*성시교독\(2부\)\s*/, '');
-                    r3 = getUntilDoubleSpace(target);
-                }
-            });
-
-            // --- 규칙 4: 3번 다음 행에 있는 "찬송(2부)" 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
-            let r4 = '';
-            let r4LineIndex = -1;
+            let r3LineIndex = lines.findIndex(l => l.includes('성시교독(2부)') || l.includes('성시교독 (2부)'));
             if (r3LineIndex !== -1 && r3LineIndex + 1 < lines.length) {
-                const lineR4 = lines[r3LineIndex + 1];
-                if (lineR4.includes('찬송(2부)')) {
-                    r4LineIndex = r3LineIndex + 1;
-                    const target = lineR4.replace(/.*찬송\(2부\)\s*/, '');
-                    r4 = getUntilDoubleSpace(target);
-                }
-            }
-            if (!r4) {
-                lines.forEach((l, idx) => {
-                    if (idx > r3LineIndex && l.includes('찬송(2부)') && r4LineIndex === -1) {
-                        r4LineIndex = idx;
-                        r4 = getUntilDoubleSpace(l.replace(/.*찬송\(2부\)\s*/, ''));
-                    }
-                });
+                r3 = lines[r3LineIndex + 1].trim();
             }
 
-            // --- 규칙 5: 4번 다음 행에 있는 "봉헌... 1부: " 이후 첫 텍스트 ~ "/" 이전까지 ---
-            // --- 규칙 6: 5번과 같은 행에 있는 "2부: " 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
-            let r5 = '', r6 = '';
-            let lineR5 = null;
+            // --- 4번: 두번째 찬송 [2부] ---
+            let r4 = '';
+            let r4LineIndex = lines.findIndex((l, idx) => idx > r2LineIndex && (l.includes('찬송(2부)') || l.includes('찬송 (2부)')) && !l.includes('*'));
+            if (r4LineIndex === -1 && r3LineIndex !== -1) {
+                r4LineIndex = lines.findIndex((l, idx) => idx > r3LineIndex && (l.includes('찬송(2부)') || l.includes('찬송 (2부)')));
+            }
             if (r4LineIndex !== -1 && r4LineIndex + 1 < lines.length) {
-                lineR5 = lines[r4LineIndex + 1];
-            }
-            if (!lineR5 || !lineR5.includes('봉헌')) {
-                lineR5 = lines.find((l, idx) => idx > r4LineIndex && l.includes('봉헌'));
+                r4 = lines[r4LineIndex + 1].trim();
             }
 
-            if (lineR5) {
-                if (lineR5.includes('1부:')) {
-                    const after1part = lineR5.split('1부:')[1];
-                    r5 = getUntilSlash(after1part);
+            // --- 5번: 봉헌 [1부] & 6번: 봉헌 [2부] ---
+            let r5 = '', r6 = '';
+            let r5LineIndex = lines.findIndex(l => l.includes('봉헌'));
+            if (r5LineIndex !== -1 && r5LineIndex + 1 < lines.length) {
+                const targetLine = lines[r5LineIndex + 1];
+                if (targetLine.includes('1부:')) {
+                    const after1 = targetLine.split('1부:')[1] || '';
+                    r5 = getUntilSlash(after1);
                 }
-                if (lineR5.includes('2부:')) {
-                    const after2part = lineR5.split('2부:')[1];
-                    r6 = getUntilDoubleSpace(after2part);
+                if (targetLine.includes('2부:')) {
+                    const after2 = targetLine.split('2부:')[1] || '';
+                    r6 = after2.trim();
                 }
             }
 
-            // --- 규칙 7: "대표기도 1부: " 이후 첫 텍스트 ~ "/" 전까지 ---
-            // --- 규칙 8: 7번 텍스트 뒤로 "부: " 탐색 -> 행 바꾸기 전까지 ---
+            // --- 7번: 대표기도자 [1부] & 8번: 대표기도자 [2부] ---
+            // 7번: "대표기도" 텍스트 탐색 -> 다음 행에서 "1부: " 텍스트 이후 ~ "/" 이전까지
+            // 8번: 7번과 동일한 행에서 "/ 2부: " 텍스트 이후 ~ 행 바꾸기 전까지
             let r7 = '', r8 = '';
-            const lineR7 = lines.find(l => l.includes('대표기도') && (l.includes('1부:') || l.includes('부:')));
-            if (lineR7) {
-                if (lineR7.includes('1부:')) {
-                    const after1part = lineR7.split('1부:')[1];
-                    if (after1part) {
-                        r7 = getUntilSlash(after1part);
-                    }
+            let r7LineIndex = lines.findIndex(l => l.includes('대표기도'));
+            if (r7LineIndex !== -1 && r7LineIndex + 1 < lines.length) {
+                const targetLine = lines[r7LineIndex + 1];
+                if (targetLine.includes('1부:')) {
+                    const after1 = targetLine.split('1부:')[1] || '';
+                    r7 = getUntilSlash(after1);
                 }
-                if (lineR7.includes('부:')) {
-                    const parts = lineR7.split(/부\s*:/);
-                    if (parts.length > 1) {
-                        r8 = parts[parts.length - 1].trim();
-                    }
+                if (targetLine.includes('2부:')) {
+                    const after2 = targetLine.split('2부:')[1] || '';
+                    r8 = after2.trim();
                 }
             }
 
-            // --- 규칙 9: "성경봉독" 이후 첫 텍스트 ~ 띄어쓰기 2번 전까지 ---
-            // --- 규칙 10: 9번 같은 행 "1부: " 이후 첫 텍스트 ~ "/" 전까지 ---
-            // --- 규칙 11: 10번 같은 행 "2부: " 이후 첫 텍스트 ~ 행바꾸기 전까지 ---
-            let r9 = '', r10 = '', r11 = '';
-            let r9LineIndex = -1;
-            lines.forEach((l, idx) => {
-                if (l.includes('성경봉독') && r9LineIndex === -1) {
-                    r9LineIndex = idx;
-                    const afterHeader = l.replace(/.*성경봉독\s*/, '');
-                    r9 = getUntilDoubleSpace(afterHeader);
+            // --- 10번: 성경봉독 담당자 [1부] & 11번: 성경봉독 담당자 [2부] ---
+            // 10번: 8번에 출력한 값의 바로 다음 행에서 "1부: " 텍스트 탐색 -> "/" 이전까지
+            // 11번: 10번과 동일한 행에서 "/ 2부: " 텍스트 탐색 -> 행 바꾸기 전까지
+            let r10 = '', r11 = '';
+            let r10LineIndex = -1;
+            if (r7LineIndex !== -1 && r7LineIndex + 2 < lines.length) {
+                r10LineIndex = r7LineIndex + 2;
+            } else {
+                r10LineIndex = lines.findIndex((l, idx) => idx > r7LineIndex && (l.includes('1부:') || l.includes('성경봉독')));
+            }
 
-                    if (l.includes('1부:')) {
-                        r10 = getUntilSlash(l.split('1부:')[1]);
-                    }
-                    if (l.includes('2부:')) {
-                        r11 = l.split('2부:')[1].trim();
-                    }
+            if (r10LineIndex !== -1 && r10LineIndex < lines.length) {
+                const targetLine = lines[r10LineIndex];
+                if (targetLine.includes('1부:')) {
+                    const after1 = targetLine.split('1부:')[1] || '';
+                    r10 = getUntilSlash(after1);
                 }
-            });
+                if (targetLine.includes('2부:')) {
+                    const after2 = targetLine.split('2부:')[1] || '';
+                    r11 = after2.trim();
+                }
+            }
 
-            // --- 규칙 12 (수정): 11번(성경봉독) 추출 텍스트의 다음 행에서 "찬양" 이후 첫 텍스트 ~ 연속 띄어쓰기 2번 전까지 ---
+            // --- 9번: 성경봉독 본문 ---
+            // 11번 출력값 바로 다음 행의 모든 텍스트 출력
+            let r9 = '';
+            let r9LineIndex = -1;
+            if (r10LineIndex !== -1 && r10LineIndex + 1 < lines.length) {
+                r9LineIndex = r10LineIndex + 1;
+                r9 = lines[r9LineIndex].trim();
+            }
+
+            // --- 12번: 찬양대(2부) 찬양 곡명 ---
+            // 9번 텍스트 바로 다음행의 모든 텍스트 출력
             let r12 = '';
             let r12LineIndex = -1;
-
             if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
-                const nextLine = lines[r9LineIndex + 1];
-                if (nextLine.includes('찬양')) {
-                    r12LineIndex = r9LineIndex + 1;
-                    const afterChanyang = nextLine.split('찬양')[1] || '';
-                    r12 = getUntilDoubleSpace(afterChanyang.trimStart());
-                }
-            }
-            if (!r12 && r9LineIndex !== -1) {
-                for (let i = r9LineIndex + 1; i < lines.length; i++) {
-                    if (lines[i].includes('찬양')) {
-                        r12LineIndex = i;
-                        const afterChanyang = lines[i].split('찬양')[1] || '';
-                        r12 = getUntilDoubleSpace(afterChanyang.trimStart());
-                        break;
-                    }
-                }
+                r12LineIndex = r9LineIndex + 1;
+                r12 = lines[r12LineIndex].trim();
             }
 
-            // --- 규칙 15: 12번 출력 텍스트 바로 다음 행에서 "설교" 탐색 ---
-            let r15 = '';
-            let r15LineIndex = -1;
-
-            if (r12LineIndex !== -1 && r12LineIndex + 1 < lines.length) {
-                const line15Candidate = lines[r12LineIndex + 1];
-                if (line15Candidate.includes('설교')) {
-                    r15LineIndex = r12LineIndex + 1;
-                    const afterSermon = line15Candidate.split('설교')[1] || '';
-                    r15 = getUntilDoubleSpace(afterSermon.trimStart());
-                }
-            }
-            if (!r15) {
-                const idx = lines.findIndex((l, i) => i > r12LineIndex && l.includes('설교') && !l.includes('인도,') && !l.includes('인도/'));
-                if (idx !== -1) {
-                    r15LineIndex = idx;
-                    const afterSermon = lines[idx].split('설교')[1] || '';
-                    r15 = getUntilDoubleSpace(afterSermon.trimStart());
-                }
+            // --- 13번: 설교 제목 ---
+            // 12번 출력값의 다음 다음 다음 행의 모든 텍스트 출력
+            let r13 = '';
+            let r13LineIndex = -1;
+            if (r12LineIndex !== -1 && r12LineIndex + 3 < lines.length) {
+                r13LineIndex = r12LineIndex + 3;
+                r13 = lines[r13LineIndex].trim();
             }
 
-            // --- 규칙 13: 12번 다음 다음 행 "찬송 1부: " 텍스트 이후 첫 텍스트 ~ " /" 이전까지 ---
-            // --- 규칙 14: 13번과 같은 행 "2부: " 이후 첫 텍스트 ~ 연속 띄어쓰기 2번 전까지 ---
-            let r13 = '', r14 = '';
-            let lineR13 = null;
-            if (r12LineIndex !== -1 && r12LineIndex + 2 < lines.length) {
-                lineR13 = lines[r12LineIndex + 2];
-            }
-            if (!lineR13 || !lineR13.includes('찬송')) {
-                lineR13 = lines.find((l, idx) => idx > r12LineIndex && l.includes('찬송') && l.includes('1부:'));
+            // --- 14번: 설교후 찬양 [1부] & 15번: 설교후 찬양 [2부] ---
+            // 14번: 13번 출력값의 다음 다음 다음 행에서 "1부: " 탐색 -> "/" 이전까지
+            // 15번: 14번 출력값과 같은 행에서 "/ 2부: " 탐색 -> 행 바꾸기 전까지
+            let r14 = '', r15 = '';
+            let r14LineIndex = -1;
+            if (r13LineIndex !== -1 && r13LineIndex + 3 < lines.length) {
+                r14LineIndex = r13LineIndex + 3;
+            } else if (r13LineIndex !== -1) {
+                r14LineIndex = lines.findIndex((l, idx) => idx > r13LineIndex && l.includes('1부:'));
             }
 
-            if (lineR13) {
-                if (lineR13.includes('1부:')) {
-                    const after1 = lineR13.split('1부:')[1];
-                    r13 = getUntilSlash(after1);
+            if (r14LineIndex !== -1 && r14LineIndex < lines.length) {
+                const targetLine = lines[r14LineIndex];
+                if (targetLine.includes('1부:')) {
+                    const after1 = targetLine.split('1부:')[1] || '';
+                    r14 = getUntilSlash(after1);
                 }
-                if (lineR13.includes('2부:')) {
-                    const after2 = lineR13.split('2부:')[1];
-                    r14 = getUntilDoubleSpace(after2);
+                if (targetLine.includes('2부:')) {
+                    const after2 = targetLine.split('2부:')[1] || '';
+                    r15 = after2.trim();
                 }
             }
 
             const ruleDefs = [
-                { id: 1, label: "설교자 (인도, 설교: 이후)", value: r1 },
-                { id: 2, label: "첫번째 찬송 [2부] (찬송(2부) * 이후)", value: r2 },
-                { id: 3, label: "성시교독 [2부] (성시교독(2부) 이후)", value: r3 },
-                { id: 4, label: "두번째 찬송 [2부] (3번 다음 행 찬송(2부) 이후)", value: r4 },
-                { id: 5, label: "봉헌 [1부] (4번 다음 행 봉헌 1부: 이후 / 전까지)", value: r5 },
-                { id: 6, label: "봉헌 [2부] (5번 같은 행 2부: 이후 연속 띄어쓰기 2번 전까지)", value: r6 },
-                { id: 7, label: "대표기도자 [1부] (대표기도 1부: 이후 / 전까지)", value: r7 },
-                { id: 8, label: "대표기도자 [2부] (2부: 이후 행바꾸기 전까지)", value: r8 },
-                { id: 9, label: "성경봉독 본문 (성경봉독 이후 연속 띄어쓰기 2번 전까지)", value: r9 },
-                { id: 10, label: "성경봉독 담당자 [1부] (1부: 이후 / 전까지)", value: r10 },
-                { id: 11, label: "성경봉독 담당자 [2부] (2부: 이후 행바꾸기 전까지)", value: r11 },
-                { id: 12, label: "찬양대(2부) 찬양 곡명 (두레찬양대 찬양 곡명)", value: r12 },
-                { id: 13, label: "세번째 찬송 [1부] (12번 다음 다음 행 찬송 1부: 이후 / 전까지)", value: r13 },
-                { id: 14, label: "세번째 찬송 [2부] (13번 같은 행 2부: 이후 연속 띄어쓰기 2번 전까지)", value: r14 },
-                { id: 15, label: "설교 제목 (목회 설교 제목)", value: r15 }
+                { id: 1, label: "설교자", value: r1 },
+                { id: 2, label: "첫번째 찬송 [2부]", value: r2 },
+                { id: 3, label: "성시교독 [2부]", value: r3 },
+                { id: 4, label: "두번째 찬송 [2부]", value: r4 },
+                { id: 5, label: "봉헌 [1부]", value: r5 },
+                { id: 6, label: "봉헌 [2부]", value: r6 },
+                { id: 7, label: "대표기도자 [1부]", value: r7 },
+                { id: 8, label: "대표기도자 [2부]", value: r8 },
+                { id: 9, label: "성경봉독 본문", value: r9 },
+                { id: 10, label: "성경봉독 담당자 [1부]", value: r10 },
+                { id: 11, label: "성경봉독 담당자 [2부]", value: r11 },
+                { id: 12, label: "찬양대(2부) 찬양 곡명", value: r12 },
+                { id: 13, label: "설교 제목", value: r13 },
+                { id: 14, label: "설교후 찬양 [1부]", value: r14 },
+                { id: 15, label: "설교후 찬양 [2부]", value: r15 }
             ];
 
             last15Results = ruleDefs;
