@@ -1244,14 +1244,57 @@
                             if (startRun === -1) startRun = 0;
                             if (endRun === -1) endRun = runRanges.length - 1;
 
-                            // 해당 Run 구간의 텍스트를 이어붙여 치환 수행
-                            const spanText = runTexts.slice(startRun, endRun + 1).join("");
-                            const newSpanText = spanText.replace(matchObj.matchStr, replVal);
+                            // 1번 (설교자) 특수 처리: 이름 부분(44pt)과 직분자 텍스트(32pt) 분리 주입
+                            if (matchObj.numStr === '1') {
+                                const fullVal = (pptxData['1번'] || '').trim();
+                                const titleMatch = fullVal.match(/[\s]*(담임목사|목사|전도사|강도사|장로|집사|권사)$/);
+                                let namePart = fullVal;
+                                let titlePart = '';
+                                if (titleMatch) {
+                                    titlePart = titleMatch[1];
+                                    namePart = fullVal.substring(0, titleMatch.index).trim();
+                                }
 
-                            // 치환 결과는 해당 구간의 시작 Run에 주입하고, 구간 내 잉여 Run 텍스트는 비움 (다른 Run의 서식 및 <a:br> 100% 보존)
-                            runTexts[startRun] = newSpanText;
-                            for (let k = startRun + 1; k <= endRun; k++) {
-                                runTexts[k] = "";
+                                // 1번 시작 Run에는 이름 텍스트만 치환 (44pt 서식 유지)
+                                const spanText = runTexts.slice(startRun, endRun + 1).join("");
+                                const newSpanText = spanText.replace(matchObj.matchStr, namePart);
+                                runTexts[startRun] = newSpanText;
+                                for (let k = startRun + 1; k <= endRun; k++) {
+                                    runTexts[k] = "";
+                                }
+
+                                // 직분자 텍스트는 32pt (sz="3200") Run에 주입하여 폰트 크기 32pt 적용
+                                let titleRunFound = false;
+                                for (let tIdx = endRun + 1; tIdx < runs.length; tIdx++) {
+                                    const rNode = runs[tIdx];
+                                    const rPr = rNode.getElementsByTagName('a:rPr')[0] || rNode.getElementsByTagName('rPr')[0];
+                                    const sz = rPr ? rPr.getAttribute('sz') : null;
+                                    
+                                    if (sz === '3200' || runTexts[tIdx].includes('목사')) {
+                                        runTexts[tIdx] = titlePart ? titlePart : '';
+                                        if (rPr) {
+                                            rPr.setAttribute('sz', '3200'); // 32pt 지정
+                                        }
+                                        titleRunFound = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!titleRunFound && titlePart && endRun + 1 < runs.length) {
+                                    const nextR = runs[endRun + 1];
+                                    const rPr = nextR.getElementsByTagName('a:rPr')[0] || nextR.getElementsByTagName('rPr')[0];
+                                    if (rPr) rPr.setAttribute('sz', '3200');
+                                    runTexts[endRun + 1] = ' ' + titlePart;
+                                }
+                            } else {
+                                // 일반 항목 치환
+                                const spanText = runTexts.slice(startRun, endRun + 1).join("");
+                                const newSpanText = spanText.replace(matchObj.matchStr, replVal);
+
+                                runTexts[startRun] = newSpanText;
+                                for (let k = startRun + 1; k <= endRun; k++) {
+                                    runTexts[k] = "";
+                                }
                             }
                         }
 
