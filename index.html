@@ -2957,10 +2957,12 @@
 
             // 5, 6, 7, 8. {5,6번} 대표기도자 & {7,8번} 성경봉독 담당자 (1부/2부)
             // '1부: ... / 2부: ...' 라인에서 콜론 뒤부터 슬래시(/) 전까지, 그리고 2부 콜론 뒤부터 줄 끝까지 전체 문자열 보존 (trim만 수행, 직분 절대 제거 안 함!)
+            // 단, "예배 1부: ...", "시간" 등 예배 시간 안내 행 및 봉헌/찬양 행은 건너뛰고 대표기도/성경봉독 행만 추출
             const personCandidateLines = [];
+            const timeFilterRegex = /오전|오후|\d{1,2}\s*시|\d{1,2}:\d{2}|AM|PM/i;
 
             lines.forEach((l, idx) => {
-                if (l.includes('봉헌') || l.includes('찬송') || l.includes('찬양')) return;
+                if (l.includes('예배') || l.includes('시간') || l.includes('봉헌') || l.includes('찬송') || l.includes('찬양')) return;
                 if (!l.includes('1부') || !l.includes('2부')) return;
 
                 let p1 = '', p2 = '';
@@ -2976,6 +2978,9 @@
                         p2 = altM[2].replace(/[\/|]/g, '').trim();
                     }
                 }
+
+                // 예배 시간 값(오전/오후/시:분 등) 건너뛰기
+                if (timeFilterRegex.test(p1) || timeFilterRegex.test(p2)) return;
 
                 if (p1 && p2) {
                     personCandidateLines.push({
