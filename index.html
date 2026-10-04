@@ -2547,81 +2547,257 @@
             }
 
             if (isTogetherSunday) {
-                const togetherJson = parseTogetherSundayRules(rawText, lines, clovaRaw);
-                togetherJson.sundayType = currentSundayType;
-
-                const ruleDefs = [
-                    { id: 1, label: "설교자", value: togetherJson.preacher },
-                    { id: 2, label: "대표기도", value: togetherJson.prayer },
-                    { id: 3, label: "성경봉독 본문", value: togetherJson.scripturePassage },
-                    { id: 4, label: "설교 제목", value: togetherJson.sermonTitle },
-                    { id: 5, label: "성경봉독 담당자", value: togetherJson.scriptureReader },
-                    { id: 6, label: "설교후 찬양", value: togetherJson.praiseAfterSermon }
-                ];
-
-                last15Results = ruleDefs;
-                renderRulesUI(ruleDefs);
-                console.log("다함께 주일 파싱 결과 JSON:", JSON.stringify(togetherJson, null, 2));
+                parseTogetherSundayRules(rawText, lines, clovaRaw);
             } else {
                 parseNormalSundayRules(rawText, lines);
             }
         }
 
         // ===================================================
-        // [다함께 주일] 지정 추출 함수
+        // [다함께 주일] 지정 추출 함수 (유형 A: 찬양팀 인도형 vs 유형 B: 찬송가·교독문 진행형 자동 분기)
         // ===================================================
         function parseTogetherSundayRules(rawText, lines, clovaRaw) {
-            // 1. 설교자: 기존 로직 재사용
-            let preacher = "";
+            if (!lines) lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+            // 1. 내부 분기 판정 (hasPraiseTeam 플래그)
+            const hasPraiseTeam = /두레\s*찬양팀/.test(rawText);
+
+            let clovaParsed = null;
             if (clovaRaw) {
-                const parsed = parseTogetherSundayClova(clovaRaw, rawText);
-                preacher = parsed.preacher;
-            }
-            if (!preacher) {
-                const fallback = parseTogetherSundayTextFallback(rawText);
-                preacher = fallback.preacher;
-            }
-
-            // 2. 대표기도: 위에서 첫번째 등장하는 "대표기도" 탐색 -> 바로 다음 행
-            let prayer = "";
-            const prayerIdx = lines.findIndex(l => l.includes('대표기도'));
-            if (prayerIdx !== -1 && prayerIdx + 1 < lines.length) {
-                prayer = lines[prayerIdx + 1].trim();
+                try {
+                    clovaParsed = parseTogetherSundayClova(clovaRaw, rawText);
+                } catch (e) {
+                    console.warn('[Together Sunday Clova parse error]:', e);
+                }
             }
 
-            // 3. 성경봉독: 위에서 첫번째 등장하는 "성경봉독" 탐색 -> 바로 다음 행
-            let scripturePassage = "";
-            let scriptureIdx = lines.findIndex(l => l.includes('성경봉독') || l.includes('성경 봉독'));
-            if (scriptureIdx !== -1 && scriptureIdx + 1 < lines.length) {
-                scripturePassage = lines[scriptureIdx + 1].trim();
+            // {1번} 설교자 (상단 "설교:" 뒤 인명)
+            let r1 = '';
+            if (clovaParsed && clovaParsed.preacher) {
+                r1 = clovaParsed.preacher;
+            }
+            if (!r1) {
+                const topLines = lines.slice(0, 20);
+                for (const l of topLines) {
+                    const m = l.match(/(?:인도[\s,;/]*)?설교\s*:\s*([가-힣]{2,4}(?:\s*(?:목사|전도사|강도사|선교사))?)/);
+                    if (m) {
+                        r1 = m[1].trim();
+                        break;
+                    }
+                }
+            }
+            if (!r1) {
+                const m = rawText.match(/(?:인도[\s,;/]*)?설교\s*:\s*([가-힣]{2,4}\s*(?:목사|전도사|강도사|선교사)?)/);
+                if (m) r1 = m[1].trim();
             }
 
-            // 4. 설교 제목: 3번 출력값의 다음 행 탐색
-            let sermonTitle = "";
-            if (scriptureIdx !== -1 && scriptureIdx + 2 < lines.length) {
-                sermonTitle = lines[scriptureIdx + 2].trim();
+            // {9번} 성경 본문
+            const bibleRegex = /(창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록)\s*\d+[\s:장편]*\d+(?:\s*[-~]\s*\d+)?/;
+            let r9 = '';
+            const m9 = rawText.match(bibleRegex);
+            if (m9) {
+                r9 = m9[0].trim();
+            } else if (clovaParsed && clovaParsed.scripturePassage) {
+                r9 = clovaParsed.scripturePassage;
             }
 
-            // 5. 설교후 찬양: 4번 출력값의 다음 행 탐색
-            let praiseAfterSermon = "";
-            if (scriptureIdx !== -1 && scriptureIdx + 3 < lines.length) {
-                praiseAfterSermon = lines[scriptureIdx + 3].trim();
+            // {5, 6번} 대표기도자 (단일 담당자 텍스트 동일 바인딩)
+            let prayer = '';
+            for (let i = 0; i < lines.length; i++) {
+                const l = lines[i];
+                if (l.includes('대표기도') || l.includes('대표 기도')) {
+                    let p = l.replace(/.*대표\s*기도\s*[:\s]*/, '').trim();
+                    if (p && !p.includes('대표기도')) {
+                        prayer = p;
+                        break;
+                    } else if (i + 1 < lines.length) {
+                        const nextL = lines[i + 1].trim();
+                        if (nextL && !nextL.includes('성경') && !nextL.includes('찬양') && !nextL.includes('설교')) {
+                            prayer = nextL;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!prayer) {
+                const mP = rawText.match(/(?:제\s*\d+\s*청년부|[가-힣]+부)\s+[가-힣]{2,4}\s*조/);
+                if (mP) prayer = mP[0].trim();
+            }
+            if (!prayer && clovaParsed && clovaParsed.prayer) {
+                prayer = clovaParsed.prayer;
+            }
+            prayer = prayer.replace(/[\/|]/g, '').trim();
+            let r5 = prayer, r6 = prayer;
+
+            // {7, 8번} 성경봉독자 (단일 담당자 텍스트 동일 바인딩)
+            let scriptureReader = '';
+            for (let i = 0; i < lines.length; i++) {
+                const l = lines[i];
+                if (l.includes('성경봉독') || l.includes('성경 봉독')) {
+                    let after = l.replace(/.*성경\s*봉독\s*[:\s]*/, '');
+                    if (r9) after = after.replace(r9, '');
+                    after = after.replace(/[\s*:;,]+$/, '').replace(/^[\s*:;,]+/, '').trim();
+                    if (after && (after.includes('학생') || after.includes('장로') || after.includes('집사') || after.includes('권사') || after.includes(','))) {
+                        scriptureReader = after;
+                        break;
+                    } else {
+                        for (let j = i + 1; j <= Math.min(i + 3, lines.length - 1); j++) {
+                            const cand = lines[j].trim();
+                            if (r9 && cand.includes(r9)) continue;
+                            if (cand.includes('설교') || cand.includes('찬양대') || cand.includes('찬양')) break;
+                            if (cand.includes('학생') || cand.includes('장로') || cand.includes('집사') || cand.includes('권사') || cand.includes(',')) {
+                                scriptureReader = cand;
+                                break;
+                            }
+                        }
+                        if (scriptureReader) break;
+                    }
+                }
+            }
+            if (!scriptureReader) {
+                const mR = rawText.match(/([가-힣]{2,4}\s*(?:학생|청년|집사|권사|장로)\s*,\s*[가-힣]{2,4}\s*(?:학생|청년|집사|권사|장로))/);
+                if (mR) scriptureReader = mR[1].trim();
+            }
+            if (!scriptureReader && clovaParsed && clovaParsed.scriptureReader) {
+                scriptureReader = clovaParsed.scriptureReader;
+            }
+            scriptureReader = scriptureReader.replace(/[\/|]/g, '').trim();
+            let r7 = scriptureReader, r8 = scriptureReader;
+
+            // {11번} 설교 제목
+            let r11 = '';
+            if (clovaParsed && clovaParsed.sermonTitle && clovaParsed.sermonTitle.length > 2) {
+                r11 = clovaParsed.sermonTitle;
+            }
+            if (!r11) {
+                for (let i = 0; i < lines.length; i++) {
+                    const l = lines[i];
+                    const compact = l.replace(/\s+/g, '');
+                    if (compact.startsWith('설교') && !compact.includes('설교자') && !compact.includes('설교:') && !compact.includes('인도:')) {
+                        const cand = l.replace(/^설\s*교\s*[:\s]*/, '').replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
+                        if (cand && cand !== '설교') {
+                            r11 = cand;
+                            break;
+                        } else if (i + 1 < lines.length) {
+                            const nextL = lines[i + 1].trim();
+                            if (nextL && !nextL.includes('찬양') && !nextL.includes('찬송') && !nextL.includes('봉헌')) {
+                                r11 = nextL;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!r11) {
+                const mTitle = rawText.match(/설\s*교\s+([^\n]+)/);
+                if (mTitle) {
+                    const cand = mTitle[1].replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
+                    if (cand && cand !== '설교') r11 = cand;
+                }
             }
 
-            // 6. 성경 봉독 담당자: 5번 출력값의 다음 행 탐색
-            let scriptureReader = "";
-            if (scriptureIdx !== -1 && scriptureIdx + 4 < lines.length) {
-                scriptureReader = lines[scriptureIdx + 4].trim();
+            // {12, 13번} 설교후 찬양 (단일 찬양 곡명 동일 바인딩)
+            let praiseAfterSermon = '';
+            if (clovaParsed && clovaParsed.praiseAfterSermon) {
+                praiseAfterSermon = clovaParsed.praiseAfterSermon;
+            }
+            if (!praiseAfterSermon) {
+                let sermonIdx = lines.findIndex(l => {
+                    const c = l.replace(/\s+/g, '');
+                    return (c.startsWith('설교') && !c.includes('설교자') && !c.includes('설교:')) || (r11 && l.includes(r11));
+                });
+                const searchStart = sermonIdx !== -1 ? sermonIdx + 1 : 0;
+                for (let i = searchStart; i < lines.length; i++) {
+                    const l = lines[i];
+                    if (l.includes('축복선언') || l.includes('강복선언') || l.includes('축도')) break;
+                    if (l.includes('찬송') || l.includes('찬양')) {
+                        let cand = l.replace(/.*(?:찬송|찬양)\s*[:\s]*/, '').replace(/다함께.*/, '').replace(/[\/|]/g, '').trim();
+                        const mHymn = cand.match(/찬송가\s*(\d+)\s*장/) || cand.match(/(\d+)\s*장/);
+                        if (mHymn) cand = '찬송가 ' + mHymn[1] + '장';
+                        if (cand) { praiseAfterSermon = cand; break; }
+                    }
+                }
+            }
+            if (!praiseAfterSermon) {
+                const allHymns = Array.from(rawText.matchAll(/찬송가\s*(\d+)\s*장/g));
+                if (allHymns.length >= 3) {
+                    praiseAfterSermon = '찬송가 ' + allHymns[allHymns.length - 1][1] + '장';
+                }
+            }
+            praiseAfterSermon = praiseAfterSermon.replace(/[\/|]/g, '').trim();
+            let r12 = praiseAfterSermon, r13 = praiseAfterSermon;
+
+            // 유형별 찬송가 및 교독문, 찬양대 분기
+            let r2 = '', r3 = '', r4 = '', r10 = '';
+            if (hasPraiseTeam) {
+                // [유형 A: 찬양팀 인도형] (1, 2번 주보 형태)
+                r2 = '';
+                r3 = '';
+                r4 = '';
+                r10 = '-없음-';
+                if (clovaParsed && clovaParsed.specialPraiseTitle && clovaParsed.specialPraiseTitle !== '-없음-') {
+                    r10 = clovaParsed.specialPraiseTitle;
+                } else {
+                    for (const l of lines) {
+                        if (l.includes('두레찬양대') || l.includes('특별찬양') || l.includes('특송')) {
+                            let cand = l.replace(/.*(?:두레찬양대|특별찬양|특송)\s*[:\s]*/, '').trim();
+                            if (cand) { r10 = cand; break; }
+                        }
+                    }
+                }
+            } else {
+                // [유형 B: 찬송가·교독문 진행형] (3번 주보 형태)
+                const gyodokRawIdx = rawText.indexOf('교독문');
+                const preGyodok = gyodokRawIdx !== -1 ? rawText.substring(0, gyodokRawIdx) : rawText;
+                const m2 = preGyodok.match(/찬송가\s*(\d+)\s*장/);
+                if (m2) r2 = '찬송가 ' + m2[1] + '장';
+
+                const m3 = rawText.match(/교독문\s*(\d+)\s*번/) || rawText.match(/교독문\s*(\d+)/);
+                if (m3) r3 = '교독문 ' + m3[1] + '번';
+
+                const bongheonIdx = lines.findIndex(l => l.replace(/\s+/g, '').includes('봉헌'));
+                const gyodokIdx = lines.findIndex(l => l.includes('교독문'));
+                if (gyodokIdx !== -1) {
+                    const searchEndIdx = bongheonIdx !== -1 && bongheonIdx > gyodokIdx ? bongheonIdx : lines.length;
+                    for (let i = gyodokIdx + 1; i < searchEndIdx; i++) {
+                        const m = lines[i].match(/찬송가\s*(\d+)\s*장/);
+                        if (m) { r4 = '찬송가 ' + m[1] + '장'; break; }
+                    }
+                }
+                if (!r4 && gyodokRawIdx !== -1) {
+                    const textAfter = rawText.substring(gyodokRawIdx);
+                    const m4 = textAfter.match(/찬송가\s*(\d+)\s*장/);
+                    if (m4) r4 = '찬송가 ' + m4[1] + '장';
+                }
+
+                r10 = '-없음-';
+                for (const l of lines) {
+                    if (l.includes('두레찬양대') || l.includes('찬양대')) {
+                        let cand = l.replace(/^(두레찬양대\s*\(2부\)|두레찬양대\(2부\)|두레찬양대|찬양대)\s*[:\s]*/, '').trim();
+                        cand = cand.replace(/\s*(설교자|인도자).*/, '').trim();
+                        if (cand && cand !== '두레찬양대' && cand !== '찬양대') { r10 = cand; break; }
+                    }
+                }
             }
 
-            return {
-                preacher,
-                prayer,
-                scripturePassage,
-                sermonTitle,
-                praiseAfterSermon,
-                scriptureReader
-            };
+            const ruleDefs = [
+                { id: 1, label: "설교자", value: r1 },
+                { id: 2, label: "첫번째 찬송", value: r2 },
+                { id: 3, label: "성시교독", value: r3 },
+                { id: 4, label: "두번째 찬송", value: r4 },
+                { id: 5, label: "대표기도자 [1부]", value: r5 },
+                { id: 6, label: "대표기도자 [2부]", value: r6 },
+                { id: 7, label: "성경봉독 담당자 [1부]", value: r7 },
+                { id: 8, label: "성경봉독 담당자 [2부]", value: r8 },
+                { id: 9, label: "성경봉독 본문", value: r9 },
+                { id: 10, label: "찬양대(2부) 찬양 곡명", value: r10 },
+                { id: 11, label: "설교 제목", value: r11 },
+                { id: 12, label: "설교후 찬양 [1부]", value: r12 },
+                { id: 13, label: "설교후 찬양 [2부]", value: r13 }
+            ];
+
+            last15Results = ruleDefs;
+            renderRulesUI(ruleDefs);
         }
 
         // ===================================================
@@ -3219,8 +3395,7 @@
                         updateHymnsUI();
 
                         const input9 = document.getElementById('pptx_input_9');
-                        const input3 = document.getElementById('pptx_input_3');
-                        const targetInput = (currentSundayType === "다함께 주일") ? input3 : input9;
+                        const targetInput = input9;
                         const biblePassageInput = document.getElementById('biblePassageInput');
                         if (targetInput && biblePassageInput) {
                             biblePassageInput.value = targetInput.value;
@@ -3235,8 +3410,8 @@
             // 찬송가 번호 감지 및 시놀로지 NAS 일괄 다운로드 UI 업데이트
             updateHymnsUI();
 
-            // 성경봉독 본문 항목 ({9번} 또는 {3번}) 연동 및 성경 PPTX UI 업데이트
-            const scriptureItem = ruleDefs.find(r => r.label.includes('본문') || r.label === '성경봉독 본문' || (currentSundayType === "다함께 주일" ? r.id === 3 : r.id === 9));
+            // 성경봉독 본문 항목 ({9번}) 연동 및 성경 PPTX UI 업데이트
+            const scriptureItem = ruleDefs.find(r => r.id === 9 || r.label.includes('본문'));
             const biblePassageInput = document.getElementById('biblePassageInput');
             if (scriptureItem && scriptureItem.value && biblePassageInput) {
                 biblePassageInput.value = scriptureItem.value;
@@ -3903,7 +4078,7 @@
                 downloadPptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 자막 PPTX 생성 중...';
 
                 const isTogether = currentSundayType === "다함께 주일";
-                const itemCount = isTogether ? 6 : 13;
+                const itemCount = 13;
 
                 // 1. 입력값 맵 구축
                 const pptxData = {};
@@ -3911,6 +4086,21 @@
                     const inputEl = document.getElementById(`pptx_input_${i}`);
                     let val = inputEl ? inputEl.value.trim() : '';
                     pptxData[`${i}번`] = val;
+                }
+
+                // 다함께 주일(1부/2부 구분 없는 단일 예배) 동기화 보완
+                if (isTogether) {
+                    const prayerVal = pptxData['5번'] || pptxData['6번'] || '';
+                    pptxData['5번'] = prayerVal;
+                    pptxData['6번'] = prayerVal;
+
+                    const readerVal = pptxData['7번'] || pptxData['8번'] || '';
+                    pptxData['7번'] = readerVal;
+                    pptxData['8번'] = readerVal;
+
+                    const praiseVal = pptxData['12번'] || pptxData['13번'] || '';
+                    pptxData['12번'] = praiseVal;
+                    pptxData['13번'] = praiseVal;
                 }
 
                 // 2. 템플릿 ArrayBuffer 확보 (업로드 파일 OR 주일 종류별 default fetch)
@@ -4098,7 +4288,10 @@
                             } else {
                                 // 일반 항목 치환
                                 const spanText = runTexts.slice(startRun, endRun + 1).join("");
-                                const newSpanText = spanText.replace(matchObj.matchStr, replVal);
+                                let newSpanText = spanText.replace(matchObj.matchStr, replVal);
+                                if (isTogether && !replVal && (matchObj.numStr === '2' || matchObj.numStr === '3' || matchObj.numStr === '4')) {
+                                    newSpanText = "";
+                                }
 
                                 runTexts[startRun] = newSpanText;
                                 for (let k = startRun + 1; k <= endRun; k++) {
