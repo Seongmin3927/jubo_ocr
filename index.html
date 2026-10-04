@@ -2880,333 +2880,205 @@
         // [일반 주일] 13가지 정밀 파서
         // ===================================================
         function parseNormalSundayRules(rawText, lines) {
-            function getUntilDoubleSpace(str) {
-                if (!str) return '';
-                const idx = str.search(/\s{2,}/);
-                return idx !== -1 ? str.substring(0, idx).trim() : str.trim();
-            }
+            if (!lines) lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
-            function getUntilSlash(str) {
-                if (!str) return '';
-                const idx = str.indexOf('/');
-                return idx !== -1 ? str.substring(0, idx).trim() : str.trim();
-            }
-
-            // --- 규칙 1: "인도, 설교: " 이후 행바꾸기 전까지 ---
+            // 1. {1번} 설교자 (preacher)
+            // 문서 상단 15줄 이내에서 인도/설교 라인 탐색 (순수 이름 추출하여 PPTX 중복 방지)
             let r1 = '';
-            let lineGloryIdx = lines.findIndex(l => l.includes('영광을 하나님께') || l.includes('영광을하나님께'));
-            if (lineGloryIdx !== -1 && lineGloryIdx + 1 < lines.length) {
-                const nextLine = lines[lineGloryIdx + 1];
-                if (nextLine.includes('설교:')) {
-                    r1 = nextLine.split('설교:')[1].trim();
-                } else if (nextLine.includes('설교')) {
-                    r1 = nextLine.split('설교')[1].replace(/^[\s*:]*/, '').trim();
+            const topLines = lines.slice(0, 15);
+            for (const l of topLines) {
+                const m = l.match(/설교\s*:\s*([가-힣]{2,4}\s*(?:목사|전도사|강도사|선교사)?)/);
+                if (m) {
+                    r1 = m[1].replace(/\s*(목사|전도사|강도사|선교사)$/, '').trim();
+                    break;
                 }
             }
             if (!r1) {
-                const lineR1 = lines.find(l => l.includes('설교:'));
-                if (lineR1) {
-                    r1 = lineR1.split('설교:')[1].trim();
-                } else {
-                    const m = rawText.match(/인도\s*[\/,]?\s*설교\s*:\s*([^\n]+)/);
-                    if (m) r1 = m[1].trim();
+                const m = rawText.match(/설교\s*:\s*([가-힣]{2,4}\s*(?:목사|전도사|강도사|선교사)?)/);
+                if (m) {
+                    r1 = m[1].replace(/\s*(목사|전도사|강도사|선교사)$/, '').trim();
                 }
             }
 
-            // --- 2번: 첫번째 찬송 [2부] ---
+            // 2. {2번} 첫번째 찬송 [2부] (hymn1)
+            // '봉헌' 행 이전에 등장하는 첫 번째 찬송가
             let r2 = '';
-            let r2LineIndex = lines.findIndex(l => l.includes('찬송(2부)*') || l.includes('찬송(2부) *') || l.includes('찬송(2부)*'));
-            if (r2LineIndex !== -1 && r2LineIndex + 1 < lines.length) {
-                r2 = lines[r2LineIndex + 1].trim();
+            const bongheonIdx = lines.findIndex(l => l.replace(/\s+/g, '').includes('봉헌'));
+            const preBongheonLines = bongheonIdx !== -1 ? lines.slice(0, bongheonIdx) : lines;
+            for (const l of preBongheonLines) {
+                const m = l.match(/찬송가\s*(\d+)\s*장/);
+                if (m) {
+                    r2 = `${m[1]}장`;
+                    break;
+                }
             }
 
-            // --- 3번: 성시교독 [2부] ---
+            // 3. {3번} 성시교독 [2부] (responsiveReading)
+            // 문서 전체에서 유일한 교독문 번호 정규식 매칭
             let r3 = '';
-            let r3LineIndex = lines.findIndex(l => l.includes('성시교독(2부)') || l.includes('성시교독 (2부)'));
-            if (r3LineIndex !== -1 && r3LineIndex + 1 < lines.length) {
-                r3 = lines[r3LineIndex + 1].trim();
+            const m3 = rawText.match(/교독문\s*(\d+)\s*번/);
+            if (m3) {
+                r3 = `교독문 ${m3[1]}번`;
+            } else {
+                const m3Alt = rawText.match(/교독문\s*(\d+)/);
+                if (m3Alt) r3 = `교독문 ${m3Alt[1]}번`;
             }
 
-            // --- 4번: 두번째 찬송 [2부] ---
+            // 4. {4번} 두번째 찬송 [2부] (hymn2)
+            // '교독문' 매칭 라인 이후부터 '봉헌' 라인 사이에 등장하는 찬송가
             let r4 = '';
-            let r4LineIndex = lines.findIndex((l, idx) => idx > r2LineIndex && (l.includes('찬송(2부)') || l.includes('찬송 (2부)')) && !l.includes('*'));
-            if (r4LineIndex === -1 && r3LineIndex !== -1) {
-                r4LineIndex = lines.findIndex((l, idx) => idx > r3LineIndex && (l.includes('찬송(2부)') || l.includes('찬송 (2부)')));
+            const gyodokIdx = lines.findIndex(l => l.includes('교독문'));
+            if (gyodokIdx !== -1) {
+                const searchEndIdx = bongheonIdx !== -1 && bongheonIdx > gyodokIdx ? bongheonIdx : lines.length;
+                for (let i = gyodokIdx + 1; i < searchEndIdx; i++) {
+                    const m = lines[i].match(/찬송가\s*(\d+)\s*장/);
+                    if (m) {
+                        r4 = `${m[1]}장`;
+                        break;
+                    }
+                }
             }
-            if (r4LineIndex !== -1 && r4LineIndex + 1 < lines.length) {
-                r4 = lines[r4LineIndex + 1].trim();
-            }
 
-            // =========================================================
-            // [패턴 기반 인명 라인 추출] 5,6번(대표기도자) & 7,8번(성경봉독 담당자)
-            // =========================================================
-            let r7 = '', r8 = '';   // 5,6번: 대표기도자 1부 / 2부
-            let r10 = '', r11 = ''; // 7,8번: 성경봉독 담당자 1부 / 2부
-            let prayerLineIdx = -1;
-            let scriptureReaderLineIdx = -1;
-
-            const excludeKeywords = ['찬송가', '소유', '후렴', '성령', '찬송'];
-            const titleKeywords = ['장로', '집사', '권사', '형제', '자매', '학생', '목사', '조', '성도', '순장'];
-
-            function cleanNameText(str) {
+            // 5, 6, 7, 8. {5,6번} 대표기도자 & {7,8번} 성경봉독 담당자 (1부/2부)
+            // 문서 전체에서 `1부: ... / 2부: ...` 형태를 가진 라인 중 인명/직분이 포함된 라인 정확히 2개를 순서대로 수집
+            function cleanPersonName(str) {
                 if (!str) return '';
-                return str.replace(/^[\s*:;,\/\*\(\)]+/, '')
-                          .replace(/[\s*:;,\/\*\(\)]+$/, '')
-                          .replace(/\s+/g, ' ')
-                          .trim();
+                let clean = str.replace(/[\/|]/g, '').trim();
+                clean = clean.replace(/\s*(장로|안수집사|집사|권사|형제|자매|학생|목사|청년|교사|성도|순장)$/, '').trim();
+                return clean;
             }
 
-            function parse12BuLine(line) {
-                if (!line) return null;
-                // 곡명/찬양 라인 제외
-                if (excludeKeywords.some(kw => line.includes(kw))) return null;
-                if (!line.includes('1부') || !line.includes('2부')) return null;
+            const titleKeywords = ['장로', '집사', '권사', '형제', '자매', '학생', '목사', '청년', '성도', '순장', '교사', 'a', 'b', '안수집사'];
+            const personCandidateLines = [];
+
+            lines.forEach((l, idx) => {
+                if (l.includes('봉헌') || l.includes('찬송')) return;
+                if (!l.includes('1부') || !l.includes('2부')) return;
 
                 let p1 = '', p2 = '';
-                // 1부: NAME1 / 2부: NAME2 또는 1부: NAME1 2부: NAME2 패턴 파싱
-                if (line.includes('1부:')) {
-                    const after1 = line.split('1부:')[1] || '';
-                    if (after1.includes('2부:')) {
-                        const spl = after1.split('2부:');
-                        p1 = spl[0].replace(/[\/|]/g, '');
-                        p2 = spl[1];
-                    } else if (after1.includes('2부')) {
-                        const spl = after1.split('2부');
-                        p1 = spl[0].replace(/[\/|]/g, '');
-                        p2 = spl[1].replace(/^[\s*:]*/, '');
-                    }
-                } else if (line.includes('1부')) {
-                    const after1 = line.split('1부')[1].replace(/^[\s*:]*/, '');
-                    if (after1.includes('2부:')) {
-                        const spl = after1.split('2부:');
-                        p1 = spl[0].replace(/[\/|]/g, '');
-                        p2 = spl[1];
-                    } else if (after1.includes('2부')) {
-                        const spl = after1.split('2부');
-                        p1 = spl[0].replace(/[\/|]/g, '');
-                        p2 = spl[1].replace(/^[\s*:]*/, '');
+                const m1 = l.match(/1부\s*:\s*([^/]+)/);
+                const m2 = l.match(/2부\s*:\s*(.+)/);
+                if (m1 && m2) {
+                    p1 = m1[1].trim();
+                    p2 = m2[1].trim();
+                } else {
+                    const altM = l.match(/1부\s*[:\s]*([^\/2]+?)\s*[\/|]?\s*2부\s*[:\s]*(.+)/);
+                    if (altM) {
+                        p1 = altM[1].trim();
+                        p2 = altM[2].trim();
                     }
                 }
 
-                p1 = cleanNameText(p1);
-                p2 = cleanNameText(p2);
-
-                if (p1 || p2) {
-                    const hasTitle = titleKeywords.some(kw => line.includes(kw) || p1.includes(kw) || p2.includes(kw));
-                    return { p1, p2, hasTitle };
-                }
-                return null;
-            }
-
-            // 라벨 위치 찾기
-            const prayerLabelIdx = lines.findIndex(l => l.includes('대표기도') || l.includes('대표 기도'));
-            const scriptureLabelIdx = lines.findIndex(l => (l.includes('성경봉독') || l.includes('성경 봉독')) && !l.includes('담당자'));
-
-            // 모든 1부/2부 라인 수집
-            const candidateLines = [];
-            lines.forEach((l, idx) => {
-                const parsed = parse12BuLine(l);
-                if (parsed) {
-                    candidateLines.push({ idx, ...parsed });
+                if (p1 && p2) {
+                    const hasTitle = titleKeywords.some(kw => l.includes(kw) || p1.includes(kw) || p2.includes(kw));
+                    if (hasTitle) {
+                        personCandidateLines.push({
+                            idx,
+                            line: l,
+                            p1: cleanPersonName(p1),
+                            p2: cleanPersonName(p2)
+                        });
+                    }
                 }
             });
 
-            // 직분 키워드가 있는 라인 우선 정렬 (단, 2개 이상일 때)
-            let selectedLines = candidateLines.filter(c => c.hasTitle);
-            if (selectedLines.length < 2) {
-                selectedLines = candidateLines;
+            let r5 = '', r6 = '', r7 = '', r8 = '';
+            if (personCandidateLines.length >= 1) {
+                r5 = personCandidateLines[0].p1;
+                r6 = personCandidateLines[0].p2;
+            }
+            if (personCandidateLines.length >= 2) {
+                r7 = personCandidateLines[1].p1;
+                r8 = personCandidateLines[1].p2;
             }
 
-            let prayerCandidate = null;
-            let scriptureCandidate = null;
-
-            if (selectedLines.length >= 2) {
-                // 대표기도 및 성경봉독 라벨 위치와 가장 가까운 후보 매칭
-                if (prayerLabelIdx !== -1 && scriptureLabelIdx !== -1) {
-                    let bestPrayer = null, bestPrayerDist = Infinity;
-                    let bestScripture = null, bestScriptureDist = Infinity;
-
-                    selectedLines.forEach(cand => {
-                        const distP = Math.abs(cand.idx - prayerLabelIdx);
-                        const distS = Math.abs(cand.idx - scriptureLabelIdx);
-                        if (distP < bestPrayerDist) {
-                            bestPrayerDist = distP;
-                            bestPrayer = cand;
-                        }
-                        if (distS < bestScriptureDist) {
-                            bestScriptureDist = distS;
-                            bestScripture = cand;
-                        }
-                    });
-
-                    if (bestPrayer && bestScripture && bestPrayer.idx !== bestScripture.idx) {
-                        prayerCandidate = bestPrayer;
-                        scriptureCandidate = bestScripture;
-                    } else {
-                        prayerCandidate = selectedLines[0];
-                        scriptureCandidate = selectedLines[1];
-                    }
-                } else if (prayerLabelIdx !== -1) {
-                    selectedLines.sort((a, b) => Math.abs(a.idx - prayerLabelIdx) - Math.abs(b.idx - prayerLabelIdx));
-                    prayerCandidate = selectedLines[0];
-                    scriptureCandidate = selectedLines[1];
-                } else if (scriptureLabelIdx !== -1) {
-                    selectedLines.sort((a, b) => Math.abs(a.idx - scriptureLabelIdx) - Math.abs(b.idx - scriptureLabelIdx));
-                    scriptureCandidate = selectedLines[0];
-                    prayerCandidate = selectedLines[1];
-                } else {
-                    prayerCandidate = selectedLines[0];
-                    scriptureCandidate = selectedLines[1];
-                }
-            } else if (selectedLines.length === 1) {
-                const single = selectedLines[0];
-                if (prayerLabelIdx !== -1 && scriptureLabelIdx !== -1) {
-                    const distP = Math.abs(single.idx - prayerLabelIdx);
-                    const distS = Math.abs(single.idx - scriptureLabelIdx);
-                    if (distP <= distS) {
-                        prayerCandidate = single;
-                    } else {
-                        scriptureCandidate = single;
-                    }
-                } else if (scriptureLabelIdx !== -1 && Math.abs(single.idx - scriptureLabelIdx) < 3) {
-                    scriptureCandidate = single;
-                } else {
-                    prayerCandidate = single;
-                }
-            }
-
-            if (prayerCandidate) {
-                r7 = prayerCandidate.p1;
-                r8 = prayerCandidate.p2;
-                prayerLineIdx = prayerCandidate.idx;
-            }
-            if (scriptureCandidate) {
-                r10 = scriptureCandidate.p1;
-                r11 = scriptureCandidate.p2;
-                scriptureReaderLineIdx = scriptureCandidate.idx;
-            }
-
-            // =========================================================
-            // [보조 Fallback 코드] 만약 2개 라인이 온전히 잡히지 않았을 경우
-            // =========================================================
-            if (!r7 && !r8 && prayerLabelIdx !== -1 && prayerLabelIdx + 1 < lines.length) {
-                const targetLine = lines[prayerLabelIdx + 1];
-                if (targetLine.includes('1부:')) {
-                    r7 = cleanNameText(getUntilSlash(targetLine.split('1부:')[1] || ''));
-                }
-                if (targetLine.includes('2부:')) {
-                    r8 = cleanNameText(targetLine.split('2부:')[1] || '');
-                }
-            }
-
-            // 66개 성경 책 이름 및 장·절 정규식 패턴
-            const bibleRegex = /(창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록)\s*\d+[\s:장]*\d+(?:\s*[-~]\s*\d+)?/;
-
-            // --- 9번: 성경봉독 본문 (scripturePassage) 독립 추출 ---
+            // 9. {9번} 성경봉독 본문 (scripturePassage)
+            // 위치 무관, 신구약 66권 책 이름 + 장:절 정규식으로 매칭
+            const bibleRegex = /(창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|예레미야애가|에스겔|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한일서|요한이서|요한삼서|유다서|요한계시록)\s*\d+[\s:장편]*\d+(?:\s*[-~]\s*\d+)?/;
             let r9 = '';
-            const bibleMatch = rawText.match(bibleRegex);
-            if (bibleMatch) {
-                r9 = bibleMatch[0].trim();
-            } else {
-                const lineScripture = lines.find(l => l.includes('성경봉독') || l.includes('성경 봉독'));
-                if (lineScripture) {
-                    r9 = lineScripture.replace(/.*성경\s*봉독\s*/, '').replace(/1부.*/, '').trim();
-                }
+            const m9 = rawText.match(bibleRegex);
+            if (m9) {
+                r9 = m9[0].trim();
             }
 
-            let r9LineIndex = -1;
-            if (r9) {
-                r9LineIndex = lines.findIndex(l => l.includes(r9));
-            }
-            if (r9LineIndex === -1) {
-                r9LineIndex = lines.findIndex(l => l.includes('성경봉독') || l.includes('성경 봉독'));
-            }
+            // 12 & 13. {12번} 설교후 찬양 [1부] & {13번} 설교후 찬양 [2부]
+            // 문서 하단부(축복선언, 강복선언, 축도 직전)에 나오는 `1부: ... / 2부: ...` 찬송 라인
+            let r12 = '', r13 = '';
+            let postSermonHymnIdx = -1;
 
-            if (!r10 && !r11) {
-                let fallbackIdx = -1;
-                if (r9LineIndex !== -1 && r9LineIndex + 1 < lines.length) {
-                    fallbackIdx = r9LineIndex + 1;
-                } else if (prayerLabelIdx !== -1 && prayerLabelIdx + 2 < lines.length) {
-                    fallbackIdx = prayerLabelIdx + 2;
-                }
-                if (fallbackIdx !== -1 && fallbackIdx < lines.length) {
-                    const targetLine = lines[fallbackIdx];
-                    if (targetLine.includes('1부:')) {
-                        r10 = cleanNameText(getUntilSlash(targetLine.split('1부:')[1] || ''));
-                    }
-                    if (targetLine.includes('2부:')) {
-                        r11 = cleanNameText(targetLine.split('2부:')[1] || '');
-                    }
-                    scriptureReaderLineIdx = fallbackIdx;
-                }
-            }
-
-            // --- 10번: 찬양대(2부) 찬양 곡명 (choralPraise) ---
-            let r12 = '';
-            const baseReaderIdx = (scriptureReaderLineIdx !== -1) ? scriptureReaderLineIdx : (r9LineIndex !== -1 ? r9LineIndex + 1 : -1);
-            if (baseReaderIdx !== -1 && baseReaderIdx + 2 < lines.length) {
-                r12 = lines[baseReaderIdx + 2].trim();
-            } else if (r9LineIndex !== -1 && r9LineIndex + 3 < lines.length) {
-                r12 = lines[r9LineIndex + 3].trim();
-            }
-
-            // --- 11번: 설교 제목 (sermonTitle) ---
-            let r13 = '';
-            lines.forEach((l) => {
-                const compact = l.replace(/\s+/g, '');
-                if (compact.startsWith('설교') && !compact.includes('설교자') && !compact.includes('설교:') && !r13) {
-                    const candidate = l.replace(/^설\s*교\s*/, '').replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
-                    if (candidate && candidate !== '설교') {
-                        r13 = candidate;
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const l = lines[i];
+                if (l.includes('1부') && l.includes('2부')) {
+                    const m1 = l.match(/1부\s*:\s*([^/]+)/);
+                    const m2 = l.match(/2부\s*:\s*(.+)/);
+                    if (m1 && m2) {
+                        r12 = m1[1].replace(/[\/|]/g, '').trim();
+                        r13 = m2[1].trim();
+                        postSermonHymnIdx = i;
+                        break;
                     }
                 }
-            });
-            if (!r13) {
+            }
+
+            // 10 & 11. {10번} 찬양대 곡명 & {11번} 설교 제목
+            // '성경봉독 본문({9번})' 이후부터 '설교후 찬송({12,13번})' 사이에 위치한 알맹이 텍스트 라인 2개
+            let r10 = '', r11 = '';
+            const scriptureLineIdx = r9 ? lines.findIndex(l => l.includes(r9)) : -1;
+            const endSearchIdx = postSermonHymnIdx !== -1 ? postSermonHymnIdx : lines.length;
+
+            const labelKeywords = ['찬양', '설교', '설교자', '두레찬양대', '두레찬양대(2부)', '두레찬양대 (2부)', '성경봉독', '성경봉독자', '봉헌', '다함께', '성도', '기도', '인도자', '인도', '예배', '말씀', '찬양대'];
+
+            function cleanContentLine(line) {
+                let s = line.trim();
+                s = s.replace(/^(두레찬양대\s*\(2부\)|두레찬양대\(2부\)|두레찬양대|찬양대|찬양|설교)\s*[:\s]*/, '').trim();
+                s = s.replace(/\s*(설교자|인도자).*/, '').trim();
+                return s;
+            }
+
+            const pureContentLines = [];
+            if (scriptureLineIdx !== -1) {
+                for (let i = scriptureLineIdx + 1; i < endSearchIdx; i++) {
+                    const l = lines[i].trim();
+                    if (!l) continue;
+
+                    const compact = l.replace(/\s+/g, '');
+                    if (labelKeywords.some(kw => compact === kw || compact === `${kw}:`)) continue;
+
+                    if (l.includes('1부') && l.includes('2부')) continue;
+
+                    const cleaned = cleanContentLine(l);
+                    if (cleaned && !labelKeywords.includes(cleaned)) {
+                        pureContentLines.push(cleaned);
+                    }
+                }
+            }
+
+            if (pureContentLines.length >= 1) {
+                r10 = pureContentLines[0];
+            }
+            if (pureContentLines.length >= 2) {
+                r11 = pureContentLines[1];
+            }
+
+            // 보조 폴백
+            if (!r11) {
                 const mTitle = rawText.match(/설\s*교\s+([^\n]+)/);
                 if (mTitle) {
                     const cand = mTitle[1].replace(/설교자.*/, '').replace(/인도자.*/, '').trim();
-                    if (cand && cand !== '설교') {
-                        r13 = cand;
+                    if (cand && cand !== '설교' && cand !== r1) {
+                        r11 = cand;
                     }
                 }
             }
-
-            // --- 12번: 설교후 찬양 [1부] & 13번: 설교후 찬양 [2부] ---
-            // 12번: 11번 출력값의 다음 다음 다음 행에서 "1부: " 탐색 -> "/" 이전까지 출력
-            // 13번: 12번 동일 행에서 "/ 2부: " 탐색 -> 행바꾸기 전까지 출력
-            let r14 = '', r15 = '';
-            let r13LineIndex = -1;
-            if (r13) {
-                r13LineIndex = lines.findIndex(l => l.includes(r13));
-            }
-            if (r13LineIndex === -1) {
-                r13LineIndex = lines.findIndex(l => l.replace(/\s+/g, '').startsWith('설교') && !l.includes('설교자') && !l.includes('설교:'));
-            }
-
-            let praiseTargetLine = '';
-            if (r13LineIndex !== -1 && r13LineIndex + 3 < lines.length) {
-                praiseTargetLine = lines[r13LineIndex + 3];
-            } else {
-                praiseTargetLine = lines.find((l, idx) => idx > (r13LineIndex !== -1 ? r13LineIndex : 0) && (l.includes('1부:') || l.includes('1부') || l.includes('2부:')));
-            }
-
-            if (praiseTargetLine) {
-                // 12번: "1부: " 다음부터 "/" 이전까지
-                if (praiseTargetLine.includes('1부:')) {
-                    const after1 = praiseTargetLine.split('1부:')[1] || '';
-                    r14 = getUntilSlash(after1).trim();
-                } else if (praiseTargetLine.includes('1부')) {
-                    const after1 = praiseTargetLine.split('1부')[1].replace(/^[\s*:]*/, '');
-                    r14 = getUntilSlash(after1).trim();
-                }
-
-                // 13번: 동일 행에서 "/ 2부: " 다음부터 행바꾸기 전까지
-                if (praiseTargetLine.includes('2부:')) {
-                    const after2 = praiseTargetLine.split('2부:')[1] || '';
-                    r15 = after2.trim();
-                } else if (praiseTargetLine.includes('2부')) {
-                    const after2 = praiseTargetLine.split('2부')[1].replace(/^[\s*:]*/, '');
-                    r15 = after2.trim();
+            if (!r10) {
+                for (const l of lines) {
+                    if (l.includes('두레찬양대') || l.includes('찬양대')) {
+                        const cleaned = cleanContentLine(l);
+                        if (cleaned && cleaned !== '찬양대' && cleaned !== '두레찬양대' && cleaned !== r11) {
+                            r10 = cleaned;
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -3215,15 +3087,15 @@
                 { id: 2, label: "첫번째 찬송 [2부]", value: r2 },
                 { id: 3, label: "성시교독 [2부]", value: r3 },
                 { id: 4, label: "두번째 찬송 [2부]", value: r4 },
-                { id: 5, label: "대표기도자 [1부]", value: r7 },
-                { id: 6, label: "대표기도자 [2부]", value: r8 },
-                { id: 7, label: "성경봉독 담당자 [1부]", value: r10 },
-                { id: 8, label: "성경봉독 담당자 [2부]", value: r11 },
+                { id: 5, label: "대표기도자 [1부]", value: r5 },
+                { id: 6, label: "대표기도자 [2부]", value: r6 },
+                { id: 7, label: "성경봉독 담당자 [1부]", value: r7 },
+                { id: 8, label: "성경봉독 담당자 [2부]", value: r8 },
                 { id: 9, label: "성경봉독 본문", value: r9 },
-                { id: 10, label: "찬양대(2부) 찬양 곡명", value: r12 },
-                { id: 11, label: "설교 제목", value: r13 },
-                { id: 12, label: "설교후 찬양 [1부]", value: r14 },
-                { id: 13, label: "설교후 찬양 [2부]", value: r15 }
+                { id: 10, label: "찬양대(2부) 찬양 곡명", value: r10 },
+                { id: 11, label: "설교 제목", value: r11 },
+                { id: 12, label: "설교후 찬양 [1부]", value: r12 },
+                { id: 13, label: "설교후 찬양 [2부]", value: r13 }
             ];
 
             last15Results = ruleDefs;
