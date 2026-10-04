@@ -2901,15 +2901,23 @@
             }
 
             // 2. {2번} 첫번째 찬송 [2부] (hymn1)
-            // '봉헌' 행 이전에 등장하는 첫 번째 찬송가
+            // 문서 전체에서 '교독문' 텍스트가 나오기 "이전에" 가장 먼저 등장하는 찬송가 패턴 무조건 할당
             let r2 = '';
-            const bongheonIdx = lines.findIndex(l => l.replace(/\s+/g, '').includes('봉헌'));
-            const preBongheonLines = bongheonIdx !== -1 ? lines.slice(0, bongheonIdx) : lines;
-            for (const l of preBongheonLines) {
-                const m = l.match(/찬송가\s*(\d+)\s*장/);
-                if (m) {
-                    r2 = `${m[1]}장`;
-                    break;
+            const gyodokRawIdx = rawText.indexOf('교독문');
+            const textBeforeGyodok = gyodokRawIdx !== -1 ? rawText.substring(0, gyodokRawIdx) : rawText;
+            const m2 = textBeforeGyodok.match(/찬송가\s*(\d+)\s*장/);
+            if (m2) {
+                r2 = `찬송가 ${m2[1]}장`;
+            } else {
+                // 라인별 보조 탐색 (교독문 이전 줄들)
+                const gyodokLineIdx = lines.findIndex(l => l.includes('교독문'));
+                const preGyodokLines = gyodokLineIdx !== -1 ? lines.slice(0, gyodokLineIdx) : lines;
+                for (const l of preGyodokLines) {
+                    const m = l.match(/찬송가\s*(\d+)\s*장/) || l.match(/찬송\s*(\d+)\s*장/);
+                    if (m) {
+                        r2 = `찬송가 ${m[1]}장`;
+                        break;
+                    }
                 }
             }
 
@@ -2927,6 +2935,7 @@
             // 4. {4번} 두번째 찬송 [2부] (hymn2)
             // '교독문' 매칭 라인 이후부터 '봉헌' 라인 사이에 등장하는 찬송가
             let r4 = '';
+            const bongheonIdx = lines.findIndex(l => l.replace(/\s+/g, '').includes('봉헌'));
             const gyodokIdx = lines.findIndex(l => l.includes('교독문'));
             if (gyodokIdx !== -1) {
                 const searchEndIdx = bongheonIdx !== -1 && bongheonIdx > gyodokIdx ? bongheonIdx : lines.length;
@@ -2938,47 +2947,43 @@
                     }
                 }
             }
-
-            // 5, 6, 7, 8. {5,6번} 대표기도자 & {7,8번} 성경봉독 담당자 (1부/2부)
-            // 문서 전체에서 `1부: ... / 2부: ...` 형태를 가진 라인 중 인명/직분이 포함된 라인 정확히 2개를 순서대로 수집
-            function cleanPersonName(str) {
-                if (!str) return '';
-                let clean = str.replace(/[\/|]/g, '').trim();
-                clean = clean.replace(/\s*(장로|안수집사|집사|권사|형제|자매|학생|목사|청년|교사|성도|순장)$/, '').trim();
-                return clean;
+            if (!r4 && gyodokRawIdx !== -1) {
+                const textAfterGyodok = rawText.substring(gyodokRawIdx);
+                const m4 = textAfterGyodok.match(/찬송가\s*(\d+)\s*장/);
+                if (m4) {
+                    r4 = `${m4[1]}장`;
+                }
             }
 
-            const titleKeywords = ['장로', '집사', '권사', '형제', '자매', '학생', '목사', '청년', '성도', '순장', '교사', 'a', 'b', '안수집사'];
+            // 5, 6, 7, 8. {5,6번} 대표기도자 & {7,8번} 성경봉독 담당자 (1부/2부)
+            // '1부: ... / 2부: ...' 라인에서 콜론 뒤부터 슬래시(/) 전까지, 그리고 2부 콜론 뒤부터 줄 끝까지 전체 문자열 보존 (trim만 수행, 직분 절대 제거 안 함!)
             const personCandidateLines = [];
 
             lines.forEach((l, idx) => {
-                if (l.includes('봉헌') || l.includes('찬송')) return;
+                if (l.includes('봉헌') || l.includes('찬송') || l.includes('찬양')) return;
                 if (!l.includes('1부') || !l.includes('2부')) return;
 
                 let p1 = '', p2 = '';
-                const m1 = l.match(/1부\s*:\s*([^/]+)/);
+                const m1 = l.match(/1부\s*:\s*([^/]+?)(?=\s*(?:\/|\s*2부|$))/);
                 const m2 = l.match(/2부\s*:\s*(.+)/);
                 if (m1 && m2) {
-                    p1 = m1[1].trim();
-                    p2 = m2[1].trim();
+                    p1 = m1[1].replace(/[\/|]/g, '').trim();
+                    p2 = m2[1].replace(/[\/|]/g, '').trim();
                 } else {
                     const altM = l.match(/1부\s*[:\s]*([^\/2]+?)\s*[\/|]?\s*2부\s*[:\s]*(.+)/);
                     if (altM) {
-                        p1 = altM[1].trim();
-                        p2 = altM[2].trim();
+                        p1 = altM[1].replace(/[\/|]/g, '').trim();
+                        p2 = altM[2].replace(/[\/|]/g, '').trim();
                     }
                 }
 
                 if (p1 && p2) {
-                    const hasTitle = titleKeywords.some(kw => l.includes(kw) || p1.includes(kw) || p2.includes(kw));
-                    if (hasTitle) {
-                        personCandidateLines.push({
-                            idx,
-                            line: l,
-                            p1: cleanPersonName(p1),
-                            p2: cleanPersonName(p2)
-                        });
-                    }
+                    personCandidateLines.push({
+                        idx,
+                        line: l,
+                        p1: p1,
+                        p2: p2
+                    });
                 }
             });
 
