@@ -124,7 +124,7 @@ function arrayBufferToBase64(buffer) {
 }
 
 /**
- * Google Gemini API (gemini-1.5-flash-latest) 호출 및 구조화된 JSON 파싱
+ * Google Gemini API (gemini-2.5-flash) 호출 및 구조화된 JSON 파싱
  */
 async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) {
   const systemPrompt = `당신은 교회 주보 검증 시스템입니다. 제공된 이미지가 '교회에서 성도들에게 바로 배포하여 예배에 즉시 사용할 수 있는 온전한 주보(예배 순서 및 광고/소식이 온전히 포함된 문서)'인지 판별하십시오.
@@ -172,53 +172,23 @@ async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) 
     }
   };
 
-  const primaryModel = env?.GEMINI_MODEL || 'gemini-2.5-flash';
-  const modelCandidates = [
-    primaryModel,
-    'gemini-2.5-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-2.5-flash-latest'
-  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+  const modelName = env?.GEMINI_MODEL || 'gemini-2.5-flash';
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-  let geminiRes = null;
-  let lastErrorText = '';
-  let usedModel = primaryModel;
+  const geminiRes = await fetch(geminiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(geminiPayload)
+  });
 
-  for (let i = 0; i < modelCandidates.length; i++) {
-    const model = modelCandidates[i];
-    usedModel = model;
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiPayload)
-    });
-
-    if (geminiRes.ok) {
-      break;
-    }
-
-    lastErrorText = await geminiRes.text();
-    // 404 (Not Found) 또는 402 (Payment Required / 크레딧 소진) 발생 시 다음 무료 후보 모델로 재시도
-    if (geminiRes.status === 404 || geminiRes.status === 402) {
-      const suggestedMatch = lastErrorText.match(/models\/([a-zA-Z0-9._-]+)/);
-      if (suggestedMatch && !modelCandidates.includes(suggestedMatch[1])) {
-        modelCandidates.push(suggestedMatch[1]);
-      }
-      continue;
-    } else {
-      break;
-    }
-  }
-
-  if (!geminiRes || !geminiRes.ok) {
+  if (!geminiRes.ok) {
+    const errorText = await geminiRes.text();
     return new Response(
       JSON.stringify({
         is_jubo: false,
-        reason: `Gemini API 호출 실패 (${geminiRes ? geminiRes.status : 'No Response'}, 모델: ${usedModel}): ${lastErrorText}`
+        reason: `Gemini API 호출 실패 (${geminiRes.status}, 모델: ${modelName}): ${errorText}`
       }),
-      { status: geminiRes ? geminiRes.status : 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      { status: geminiRes.status, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
 
