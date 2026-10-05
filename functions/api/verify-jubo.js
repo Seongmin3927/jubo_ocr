@@ -4,7 +4,7 @@
  * 
  * Client sends: FormData with 'file' (Image File)
  * Function reads env: GEMINI_API_KEY
- * Model: gemini-2.5-flash (with dynamic fallback)
+ * Model: gemini-3.8-flash
  * Output schema: { is_jubo: boolean, reason: string }
  */
 
@@ -124,7 +124,7 @@ function arrayBufferToBase64(buffer) {
 }
 
 /**
- * Google Gemini API (gemini-2.5-flash) 호출 및 구조화된 JSON 파싱
+ * Google Gemini API (gemini-3.8-flash) 호출 및 구조화된 JSON 파싱
  */
 async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) {
   const systemPrompt = `당신은 교회 주보 검증 시스템입니다. 제공된 이미지가 '교회에서 성도들에게 바로 배포하여 예배에 즉시 사용할 수 있는 온전한 주보(예배 순서 및 광고/소식이 온전히 포함된 문서)'인지 판별하십시오.
@@ -172,7 +172,7 @@ async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) 
     }
   };
 
-  const modelName = env?.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelName = env?.GEMINI_MODEL || 'gemini-3.8-flash';
   const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
   const geminiRes = await fetch(geminiUrl, {
