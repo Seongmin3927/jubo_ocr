@@ -1775,6 +1775,18 @@
     </div>
 </div>
 
+<!-- 주보 판별 안내 모달 Dialog -->
+<div id="juboAlertModal" class="modal-overlay" style="display: none; z-index: 9999;">
+    <div class="modal-card">
+        <div class="modal-icon" style="color: #e74c3c; background: rgba(231, 76, 60, 0.12);"><i class="fa-solid fa-circle-exclamation"></i></div>
+        <h3 class="modal-title" id="juboAlertTitle">주보 검증 안내</h3>
+        <p class="modal-message" id="juboAlertMsg" style="white-space: pre-wrap; line-height: 1.6; text-align: center; color: var(--text-secondary);"></p>
+        <div class="modal-buttons" style="justify-content: center;">
+            <button type="button" class="btn-modal-confirm" id="juboAlertConfirmBtn" style="background: #e74c3c; min-width: 120px;" onclick="closeJuboAlertModal()">확인</button>
+        </div>
+    </div>
+</div>
+
 <div id="toast" class="toast">클립보드에 복사되었습니다!</div>
 
     <script>
@@ -1891,8 +1903,44 @@
             if (modal) modal.style.display = 'none';
         }
 
+        let juboAlertCallback = null;
+
+        function showJuboAlertModal(title, message, callback) {
+            const modal = document.getElementById('juboAlertModal');
+            const titleEl = document.getElementById('juboAlertTitle');
+            const msgEl = document.getElementById('juboAlertMsg');
+            juboAlertCallback = callback || null;
+
+            if (titleEl) titleEl.textContent = title;
+            if (msgEl) msgEl.textContent = message;
+            if (modal) {
+                modal.style.display = 'flex';
+            } else {
+                alert(message);
+                if (juboAlertCallback) {
+                    const cb = juboAlertCallback;
+                    juboAlertCallback = null;
+                    cb();
+                }
+            }
+        }
+
+        function closeJuboAlertModal() {
+            const modal = document.getElementById('juboAlertModal');
+            if (modal) modal.style.display = 'none';
+            if (juboAlertCallback) {
+                const cb = juboAlertCallback;
+                juboAlertCallback = null;
+                cb();
+            }
+        }
+
         function executeResetToStep1() {
             closeConfirmModal();
+            const alertModal = document.getElementById('juboAlertModal');
+            if (alertModal) alertModal.style.display = 'none';
+            juboAlertCallback = null;
+
             selectedFile = null;
             selectedBase64 = null;
             hasParsedData = false;
@@ -1909,6 +1957,7 @@
             if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
 
             extractBtn.disabled = true;
+            extractBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>';
             status.innerText = '이미지를 선택하거나 드래그해 주세요.';
             resultText.value = '';
 
@@ -2312,7 +2361,7 @@
 
         function handleFileSelect(file) {
             if (!file.type.startsWith('image/')) {
-                alert('이미지 파일(PNG, JPG, WEBP 등)만 업로드할 수 있습니다.');
+                showJuboAlertModal('파일 형식 오류', '이미지 파일(PNG, JPG, WEBP 등)만 업로드할 수 있습니다.');
                 return;
             }
             selectedFile = file;
@@ -2322,7 +2371,7 @@
             updateAmbientBackground(file, false);
 
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = async function(evt) {
                 selectedBase64 = evt.target.result;
                 preview.src = selectedBase64;
 
@@ -2343,27 +2392,105 @@
                         : (file.size / 1024).toFixed(1) + ' KB';
                     fileSizeBadge.innerHTML = `<i class="fa-solid fa-hard-drive"></i> ${sizeStr}`;
                 }
+
+                // 이미지 업로드 즉시 Google Gemini API 사전 검증 수행
+                await verifyJuboAndProceed(file);
             };
             reader.readAsDataURL(file);
-            
-            status.innerText = `[${file.name}] 이미지 준비 완료! 아래 'OCR 분석 시작' 버튼을 눌러주세요.`;
-            extractBtn.disabled = false;
-            resultText.value = "";
-            copyBtn.style.display = 'none';
-            parsedSection.style.display = 'none';
         }
 
-        // Naver CLOVA OCR Cloudflare Function Proxy 호출
-        extractBtn.addEventListener('click', async function() {
+        // ===================================================
+        // Google Gemini API 주보 사전 판별 로직 (/api/verify-jubo)
+        // ===================================================
+        async function verifyJuboAndProceed(file) {
+            // 판별 중 사용자 로딩 상태 표시
+            status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 주보 여부 확인 중... (AI 사전 검증)`;
+            extractBtn.disabled = true;
+            extractBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>주보 여부 확인 중...</span>`;
+            resultText.value = "Google Gemini AI 모델이 업로드된 이미지가 온전한 주보인지 확인하고 있습니다...";
+            copyBtn.style.display = 'none';
+            parsedSection.style.display = 'none';
+
+            const ocrSkeletonLoading = document.getElementById('ocrSkeletonLoading');
+            const skeletonTitle = ocrSkeletonLoading ? ocrSkeletonLoading.querySelector('.skeleton-title') : null;
+            if (skeletonTitle) skeletonTitle.textContent = "Google Gemini AI 모델이 주보 여부를 확인하고 있습니다...";
+            if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'block';
+
+            let verifyData = null;
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/verify-jubo', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.reason || `[HTTP ${response.status}] ${response.statusText || '주보 검증 서버 오류'}`);
+                }
+
+                verifyData = await response.json();
+            } catch (verifyError) {
+                if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
+                console.error('[Verify Jubo Error]:', verifyError);
+                extractBtn.disabled = false;
+                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
+                status.innerText = `⚠️ 주보 검증 확인 중 오류: ${verifyError.message}`;
+
+                showToast('주보 검증 통신 오류가 발생했습니다.', 'error');
+                showJuboAlertModal(
+                    '주보 검증 오류',
+                    `주보 검증 시스템 통신 중 오류가 발생했습니다.\n\n[오류 내용] ${verifyError.message}\n\n올바른 주보 이미지를 다시 업로드해주세요.`,
+                    () => { executeResetToStep1(); }
+                );
+                return;
+            }
+
+            // 검증 결과 처리
+            if (!verifyData.is_jubo) {
+                // is_jubo: false ➔ OCR 작업 중단, UI 알림창 표시 및 파일 업로드 초기화
+                if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
+                extractBtn.disabled = true;
+                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
+
+                let alertMsg = '주보가 아닙니다. 주보 이미지를 업로드해주세요.';
+                if (verifyData.reason) {
+                    alertMsg += `\n\n[판단 근거]\n${verifyData.reason}`;
+                }
+
+                showToast('주보가 아닙니다. 주보 이미지를 업로드해주세요.', 'error');
+                showJuboAlertModal('주보 검증 안내', alertMsg, () => {
+                    executeResetToStep1();
+                });
+                return;
+            }
+
+            // is_jubo: true ➔ 정상적으로 기존 OCR 프로세스로 진입
+            showToast('유효한 주보가 확인되었습니다. OCR 분석을 시작합니다.', 'success');
+            status.innerText = '주보 확인 완료! Naver CLOVA OCR 분석을 시작합니다...';
+            if (skeletonTitle) skeletonTitle.textContent = "CLOVA OCR AI 모델이 주보를 정밀 분석하고 있습니다...";
+
+            await performOcr();
+        }
+
+        // ===================================================
+        // Naver CLOVA OCR 분석 및 13개 항목 파싱 실행 함수
+        // ===================================================
+        async function performOcr() {
             if (!selectedBase64) return;
 
             extractBtn.disabled = true;
+            extractBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>CLOVA OCR 분석 중...</span>`;
             status.innerText = "Naver CLOVA OCR 서버로 분석 전송 중...";
             resultText.value = "Naver CLOVA OCR AI 모델이 이미지를 분석 중입니다. 잠시만 기다려주세요...";
             copyBtn.style.display = 'none';
             parsedSection.style.display = 'none';
 
             const ocrSkeletonLoading = document.getElementById('ocrSkeletonLoading');
+            const skeletonTitle = ocrSkeletonLoading ? ocrSkeletonLoading.querySelector('.skeleton-title') : null;
+            if (skeletonTitle) skeletonTitle.textContent = "CLOVA OCR AI 모델이 주보를 정밀 분석하고 있습니다...";
             if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'block';
 
             try {
@@ -2398,6 +2525,7 @@
                 resultText.removeAttribute('readonly');
                 status.innerText = "Naver CLOVA OCR 분석 완료!";
                 extractBtn.disabled = false;
+                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
                 copyBtn.style.display = 'inline-block';
 
                 lastClovaRaw = data.raw;
@@ -2408,12 +2536,12 @@
                     hasParsedData = true;
                     if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
                     setStep(2);
-                    showToast("데이터 분석이 완료되어 검수 화면으로 이동했습니다.");
+                    showToast("데이터 분석이 완료되어 검수 화면으로 이동했습니다.", 'success');
                 } catch (parseError) {
                     if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
                     console.error('[Parser Runtime Error]:', parseError);
                     status.innerText = `⚠️ 파싱 런타임 오류: ${parseError.message}`;
-                    showToast(`파서 오류: ${parseError.message}`);
+                    showToast(`파서 오류: ${parseError.message}`, 'error');
                 }
 
             } catch (error) {
@@ -2435,7 +2563,13 @@
 
                 resultText.value = errorDetails;
                 extractBtn.disabled = false;
+                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
             }
+        }
+
+        extractBtn.addEventListener('click', async function() {
+            if (!selectedBase64) return;
+            await performOcr();
         });
 
         let lastClovaRaw = null;
@@ -2463,10 +2597,17 @@
             navigator.clipboard.writeText(textToCopy).then(() => showToast(`주일 구분 및 ${last15Results.length}가지 추출 결과가 복사되었습니다!`));
         });
 
-        function showToast(msg) {
+        function showToast(msg, type = 'normal') {
             toast.innerText = msg;
+            if (type === 'error') {
+                toast.style.background = '#e74c3c';
+            } else if (type === 'success') {
+                toast.style.background = '#27ae60';
+            } else {
+                toast.style.background = '#0f172a';
+            }
             toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+            setTimeout(() => { toast.style.display = 'none'; }, 2500);
         }
 
         // ===================================================
