@@ -4,7 +4,7 @@
  * 
  * Client sends: FormData with 'file' (Image File)
  * Function reads env: GEMINI_API_KEY
- * Model: gemini-3.8-flash (with dynamic fallback)
+ * Model: gemini-2.5-flash (with dynamic fallback)
  * Output schema: { is_jubo: boolean, reason: string }
  */
 
@@ -172,13 +172,12 @@ async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) 
     }
   };
 
-  const primaryModel = env?.GEMINI_MODEL || 'gemini-3.8-flash';
+  const primaryModel = env?.GEMINI_MODEL || 'gemini-2.5-flash';
   const modelCandidates = [
     primaryModel,
-    'gemini-3.8-flash',
     'gemini-2.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash'
+    'gemini-2.0-flash-lite',
+    'gemini-2.5-flash-latest'
   ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
   let geminiRes = null;
@@ -201,9 +200,8 @@ async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) 
     }
 
     lastErrorText = await geminiRes.text();
-    // 404 모델 Not Found 에러인 경우
-    if (geminiRes.status === 404) {
-      // 구글 응답 메시지에 권장 대체 모델이 명시되어 있는 경우 (예: "Please update your code to use models/gemini-3.8-flash")
+    // 404 (Not Found) 또는 402 (Payment Required / 크레딧 소진) 발생 시 다음 무료 후보 모델로 재시도
+    if (geminiRes.status === 404 || geminiRes.status === 402) {
       const suggestedMatch = lastErrorText.match(/models\/([a-zA-Z0-9._-]+)/);
       if (suggestedMatch && !modelCandidates.includes(suggestedMatch[1])) {
         modelCandidates.push(suggestedMatch[1]);
