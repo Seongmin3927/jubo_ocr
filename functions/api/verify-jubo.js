@@ -97,7 +97,7 @@ export async function onRequestPost(context) {
       );
     }
 
-    return await callGeminiVerify(cleanBase64, mimeType, apiKey, corsHeaders);
+    return await callGeminiVerify(cleanBase64, mimeType, apiKey, env, corsHeaders);
   } catch (err) {
     return new Response(
       JSON.stringify({
@@ -124,9 +124,9 @@ function arrayBufferToBase64(buffer) {
 }
 
 /**
- * Google Gemini API (gemini-1.5-flash) 호출 및 구조화된 JSON 파싱
+ * Google Gemini API (gemini-1.5-flash-latest) 호출 및 구조화된 JSON 파싱
  */
-async function callGeminiVerify(base64Data, mimeType, apiKey, corsHeaders) {
+async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) {
   const systemPrompt = `당신은 교회 주보 검증 시스템입니다. 제공된 이미지가 '교회에서 성도들에게 바로 배포하여 예배에 즉시 사용할 수 있는 온전한 주보(예배 순서 및 광고/소식이 온전히 포함된 문서)'인지 판별하십시오.
 - 주보(true): 실제 특정 주일의 예배 순서(입례, 찬양, 기도, 설교 등)와 교회 소식이 완전히 채워져 즉시 사용 가능한 상태.
 - 주보 아님(false): 무지 배경 속지, 디자인 시안/템플릿(내용 빈칸), 도서/단행본 표지, 겉표지 단면만 있는 경우, 단순 교회 홍보용 리플렛/브로슈어.`;
@@ -172,22 +172,48 @@ async function callGeminiVerify(base64Data, mimeType, apiKey, corsHeaders) {
     }
   };
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const primaryModel = env?.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+  const modelCandidates = [
+    primaryModel,
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash'
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-  const geminiRes = await fetch(geminiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(geminiPayload)
-  });
+  let geminiRes = null;
+  let lastErrorText = '';
+  let usedModel = primaryModel;
 
-  if (!geminiRes.ok) {
-    const errorText = await geminiRes.text();
+  for (const model of modelCandidates) {
+    usedModel = model;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    geminiRes = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiPayload)
+    });
+
+    if (geminiRes.ok) {
+      break;
+    }
+
+    lastErrorText = await geminiRes.text();
+    // 404 모델 Not Found 에러인 경우 다음 후보 모델로 재시도
+    if (geminiRes.status === 404) {
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  if (!geminiRes || !geminiRes.ok) {
     return new Response(
       JSON.stringify({
         is_jubo: false,
-        reason: `Gemini API 호출 실패 (${geminiRes.status}): ${errorText}`
+        reason: `Gemini API 호출 실패 (${geminiRes ? geminiRes.status : 'No Response'}, 모델: ${usedModel}): ${lastErrorText}`
       }),
-      { status: geminiRes.status, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      { status: geminiRes ? geminiRes.status : 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
 
