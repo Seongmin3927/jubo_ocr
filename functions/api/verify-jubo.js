@@ -175,20 +175,39 @@ async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) 
   const modelName = env?.GEMINI_MODEL || 'gemini-3.8-flash';
   const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-  const geminiRes = await fetch(geminiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(geminiPayload)
-  });
+  const maxRetries = 2;
+  let geminiRes = null;
+  let errorText = '';
 
-  if (!geminiRes.ok) {
-    const errorText = await geminiRes.text();
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    geminiRes = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiPayload)
+    });
+
+    if (geminiRes.ok) {
+      break;
+    }
+
+    errorText = await geminiRes.text();
+
+    // 503 (Service Unavailable / High Demand) 에러 발생 시 1.5초 대기 후 최대 2회까지 재시도
+    if (geminiRes.status === 503 && attempt < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      continue;
+    }
+
+    break;
+  }
+
+  if (!geminiRes || !geminiRes.ok) {
     return new Response(
       JSON.stringify({
         is_jubo: false,
-        reason: `Gemini API 호출 실패 (${geminiRes.status}, 모델: ${modelName}): ${errorText}`
+        reason: `Gemini API 호출 실패 (${geminiRes ? geminiRes.status : 'No Response'}, 모델: ${modelName}): ${errorText}`
       }),
-      { status: geminiRes.status, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      { status: geminiRes ? geminiRes.status : 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
 
