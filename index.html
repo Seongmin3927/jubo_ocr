@@ -1121,7 +1121,7 @@
         /* Step 3: Hub Cards Grid */
         .hub-cards-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 20px;
             margin-bottom: 24px;
         }
@@ -1163,6 +1163,55 @@
             background: #d1fae5;
             padding: 3px 8px;
             border-radius: 6px;
+        }
+        .hub-card-blue { border-top: 5px solid #2563eb; }
+        .hub-card-blue .hub-card-tag {
+            color: #1d4ed8;
+            background: #dbeafe;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+        .hub-card-blue .hub-card-icon { background: #dbeafe; color: #2563eb; }
+
+        .btn-blue {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.42), 0 0 12px rgba(59, 130, 246, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s ease;
+        }
+        .btn-blue:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.58), 0 0 16px rgba(59, 130, 246, 0.4);
+            filter: brightness(1.04);
+        }
+
+        .btn-download-gyodok-inline {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 8px;
+            transition: all 0.15s;
+            vertical-align: middle;
+        }
+        .btn-download-gyodok-inline:hover:not(:disabled) {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border-color: #93c5fd;
+        }
+        .btn-download-gyodok-inline:disabled {
+            background: #f1f5f9;
+            color: #94a3b8;
+            border-color: #e2e8f0;
+            cursor: not-allowed;
         }
 
         .hub-card-header {
@@ -2013,6 +2062,49 @@
                     </button>
                 </div>
 
+                <!-- ④ 교독문 PPT 카드 -->
+                <div class="hub-card hub-card-blue" id="gyodokPptSection">
+                    <div>
+                        <div class="hub-card-header">
+                            <div class="hub-card-icon"><i class="fa-solid fa-file-lines"></i></div>
+                            <div>
+                                <h3 class="hub-card-title">교독문 PPT</h3>
+                                <span class="hub-card-tag">분할 ZIP 실시간 압축 해제</span>
+                            </div>
+                        </div>
+                        <p class="hub-card-desc">주보의 성시교독 번호를 파싱하여 교회 서버의 해당 분할 ZIP에서 개별 교독문 PPTX를 실시간 추출 및 다운로드합니다.</p>
+
+                        <div class="hub-card-meta">
+                            <div class="hub-meta-item">
+                                <strong>성시교독 번호:</strong> 
+                                <span id="summaryGyodokNo" style="font-weight: 700; color: #2563eb;">-</span>
+                            </div>
+                            <div class="hub-meta-item">
+                                <strong>대상 분할 ZIP:</strong> 
+                                <span id="summaryGyodokZip" style="font-size: 0.8rem; color: #64748b;">-</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 14px;">
+                            <label style="font-size: 0.8rem; font-weight: 700; color: #475569; display: block; margin-bottom: 6px;">
+                                <i class="fa-solid fa-keyboard"></i> 교독문 번호 직접 변경:
+                            </label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="number" id="manualGyodokInput" min="1" max="137" placeholder="번호 (1~137)" 
+                                       style="flex: 1; padding: 8px 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.88rem;">
+                                <button type="button" id="applyManualGyodokBtn" 
+                                        style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer;">
+                                    적용
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="downloadGyodokBtn" class="btn-hub-download btn-blue">
+                        <i class="fa-solid fa-file-arrow-down"></i> <span>교독문 PPT 다운로드</span>
+                    </button>
+                </div>
+
             </div>
 
             <!-- Step 3 하단 보조 메뉴 -->
@@ -2146,10 +2238,11 @@
             if (step2View) step2View.classList.toggle('active', currentStep === 2);
             if (step3View) step3View.classList.toggle('active', currentStep === 3);
 
-            // Step 3 진입 시 요약 카드 및 찬송가/성경 프리뷰 갱신
+            // Step 3 진입 시 요약 카드 및 찬송가/교독문/성경 프리뷰 갱신
             if (currentStep === 3) {
                 updateStep3Summary();
                 updateHymnsUI();
+                updateGyodokUI();
                 updateBiblePreviewUI();
             }
 
@@ -2213,6 +2306,7 @@
             hasParsedData = false;
             isHymnManuallyEdited = false;
             detectedHymnNumbers = [];
+            detectedGyodokNo = null;
             imageInput.value = '';
             preview.src = '';
 
@@ -2591,6 +2685,7 @@
         let last15Results = [];
         let currentSundayType = "일반 주일";
         let isHymnManuallyEdited = false;
+        let detectedGyodokNo = null;
 
         const uploadDropZone = document.getElementById('uploadDropZone');
 
@@ -2782,14 +2877,24 @@
 
             items.forEach((item, index) => {
                 const tr = document.createElement('tr');
+                const isGyodokRow = /교독문|성시교독/i.test(item.key || '') || /교독문/i.test(item.value || '');
+                const gyodokBtnHtml = isGyodokRow ? `
+                    <button type="button" class="btn-download-gyodok-inline" onclick="triggerDownloadGyodokFromItem(${index})" title="이 교독문 번호의 PPTX 파일 다운로드">
+                        <i class="fa-solid fa-file-powerpoint"></i> 교독문 PPT
+                    </button>
+                ` : '';
+
                 tr.innerHTML = `
                     <td>
                         <input type="text" class="cell-key-input" value="${escapeHtml(item.key || '')}" 
                                placeholder="항목명" onchange="updateDynamicItemKey(${index}, this.value)">
                     </td>
                     <td>
-                        <input type="text" class="cell-value-input" value="${escapeHtml(item.value || '')}" 
-                               placeholder="내용 입력 (클릭하여 수정)" oninput="updateDynamicItemValue(${index}, this.value)">
+                        <div class="editable-value-wrapper" style="display: flex; align-items: center; gap: 8px;">
+                            <input type="text" class="cell-value-input" value="${escapeHtml(item.value || '')}" 
+                                   placeholder="내용 입력 (클릭하여 수정)" oninput="updateDynamicItemValue(${index}, this.value)">
+                            ${gyodokBtnHtml}
+                        </div>
                     </td>
                     <td style="text-align: center;">
                         <button type="button" class="btn-delete-cell" onclick="deleteDynamicRow(${index})" title="이 항목 삭제">
@@ -2936,6 +3041,15 @@
 
             // 찬송가 번호 자동 감지 및 성경 본문 인풋 연동
             updateHymnsUI();
+
+            // 교독문 번호 자동 감지 및 교독문 UI 갱신
+            const gyodokVal = ruleDefs[2].value || '';
+            const gyodokNumMatch = gyodokVal.match(/\d+/);
+            if (gyodokNumMatch) {
+                detectedGyodokNo = parseInt(gyodokNumMatch[0], 10);
+            }
+            updateGyodokUI();
+
             const biblePassageInput = document.getElementById('biblePassageInput');
             if (biblePassageInput && ruleDefs[8].value) {
                 biblePassageInput.value = ruleDefs[8].value;
@@ -5034,6 +5148,207 @@
                 downloadHymnsBtn.innerHTML = `<i class="fa-solid fa-file-arrow-down" style="font-size: 1.3rem;"></i> <span>찬송가 PPT (${detectedHymnNumbers.length}개) 다운로드</span>`;
             }
         });
+
+        // ===================================================
+        // 교독문 (성시교독) 분할 ZIP 매핑 및 PPTX 실시간 압축 해제 다운로드 모듈
+        // ===================================================
+        function getGyodokZipFileName(gyodokNo) {
+            const n = parseInt(gyodokNo, 10);
+            if (isNaN(n) || n < 1 || n > 137) return null;
+
+            if (n >= 1 && n <= 15) return '개역개정판 교독문 1~15.zip';
+            if (n >= 16 && n <= 30) return '개역개정판 교독문 16~30.zip';
+            if (n >= 31 && n <= 45) return '개역개정판 교독문 31~45.zip';
+            if (n >= 46 && n <= 60) return '개역개정판 교독문 46~60.zip';
+            if (n >= 61 && n <= 75) return '개역개정판 교독문 61~75.zip';
+            if (n >= 76 && n <= 90) return '개역개정판 교독문 76~90.zip';
+            if (n >= 91 && n <= 105) return '개역개정판 교독문 91~105.zip';
+            if (n >= 106 && n <= 120) {
+                if (n >= 119) return '개역개정판 교독문 119~130.zip';
+                return '개역개정판 교독문 106~120.zip';
+            }
+            if (n >= 121 && n <= 130) return '개역개정판 교독문 119~130.zip';
+            if (n >= 131 && n <= 137) return '개역개정판 교독문 131~137(완).zip';
+
+            return null;
+        }
+
+        function updateGyodokUI() {
+            const summaryGyodokNo = document.getElementById('summaryGyodokNo');
+            const summaryGyodokZip = document.getElementById('summaryGyodokZip');
+            const manualGyodokInput = document.getElementById('manualGyodokInput');
+            const downloadGyodokBtn = document.getElementById('downloadGyodokBtn');
+
+            if (!downloadGyodokBtn) return;
+
+            if (detectedGyodokNo && detectedGyodokNo >= 1 && detectedGyodokNo <= 137) {
+                const zipName = getGyodokZipFileName(detectedGyodokNo);
+                if (summaryGyodokNo) summaryGyodokNo.textContent = `${detectedGyodokNo}번`;
+                if (summaryGyodokZip) summaryGyodokZip.textContent = zipName || '-';
+                if (manualGyodokInput) manualGyodokInput.value = detectedGyodokNo;
+
+                downloadGyodokBtn.disabled = false;
+                downloadGyodokBtn.innerHTML = `<i class="fa-solid fa-file-arrow-down"></i> <span>교독문 ${detectedGyodokNo}번 PPTX 다운로드</span>`;
+            } else {
+                if (summaryGyodokNo) summaryGyodokNo.textContent = '(감지되지 않음)';
+                if (summaryGyodokZip) summaryGyodokZip.textContent = '번호 입력 필요';
+                downloadGyodokBtn.disabled = true;
+                downloadGyodokBtn.innerHTML = `<i class="fa-solid fa-file-arrow-down"></i> <span>다운로드할 교독문 없음</span>`;
+            }
+        }
+
+        // 교독문 번호 직접 변경 버튼 핸들러
+        const applyManualGyodokBtn = document.getElementById('applyManualGyodokBtn');
+        const manualGyodokInput = document.getElementById('manualGyodokInput');
+
+        if (applyManualGyodokBtn && manualGyodokInput) {
+            const applyHandler = () => {
+                const val = parseInt(manualGyodokInput.value.trim(), 10);
+                if (isNaN(val) || val < 1 || val > 137) {
+                    alert('유효한 교독문 번호(1번 ~ 137번)를 입력해 주세요.');
+                    return;
+                }
+                detectedGyodokNo = val;
+                updateGyodokUI();
+                showToast(`교독문 번호가 ${val}번으로 설정되었습니다.`, 'success');
+            };
+
+            applyManualGyodokBtn.addEventListener('click', applyHandler);
+            manualGyodokInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyHandler();
+                }
+            });
+        }
+
+        // 테이블 인라인 버튼에서 호출 시
+        window.triggerDownloadGyodokFromItem = function(index) {
+            if (!currentDynamicItems || !currentDynamicItems[index]) return;
+            const item = currentDynamicItems[index];
+            const text = (item.value || '') + ' ' + (item.key || '');
+            const m = text.match(/\d+/);
+            if (m) {
+                const no = parseInt(m[0], 10);
+                if (no >= 1 && no <= 137) {
+                    detectedGyodokNo = no;
+                    updateGyodokUI();
+                    downloadSingleGyodokPptx(no);
+                    return;
+                }
+            }
+            alert('유효한 교독문 번호(1~137)를 찾을 수 없습니다. 내용을 확인해주세요.');
+        };
+
+        // 분할 ZIP 다운로드 및 메모리 상 단일 PPTX 파일 실시간 추출 다운로드 함수
+        async function downloadSingleGyodokPptx(gyodokNo) {
+            const downloadBtn = document.getElementById('downloadGyodokBtn');
+            const originalBtnHtml = downloadBtn ? downloadBtn.innerHTML : '';
+
+            try {
+                if (downloadBtn) {
+                    downloadBtn.disabled = true;
+                    downloadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ZIP 다운로드 및 압축 해제 중...</span>`;
+                }
+
+                const n = parseInt(gyodokNo, 10);
+                if (isNaN(n) || n < 1 || n > 137) {
+                    throw new Error(`유효한 교독문 번호(1~137)가 아닙니다: ${gyodokNo}`);
+                }
+
+                const zipFileName = getGyodokZipFileName(n);
+                if (!zipFileName) {
+                    throw new Error(`교독문 ${n}번에 해당하는 분할 ZIP 파일을 찾을 수 없습니다.`);
+                }
+
+                // 1. Cloudflare Pages Function 프록시 API 호출하여 ZIP ArrayBuffer 수신
+                const proxyUrl = `/api/download-gyodok?no=${encodeURIComponent(n)}`;
+                const response = await fetch(proxyUrl);
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error || `[HTTP ${response.status}] ${response.statusText || '교독문 ZIP 다운로드 실패'}`);
+                }
+
+                const zipBuffer = await response.arrayBuffer();
+
+                // 2. JSZip으로 ZIP 파일 압축 해제 및 해당 번호 PPTX 탐색
+                if (typeof JSZip === 'undefined') {
+                    throw new Error('JSZip 라이브러리가 로드되지 않았습니다.');
+                }
+
+                const zip = await JSZip.loadAsync(zipBuffer);
+                const fileNames = Object.keys(zip.files);
+
+                // 검색 우선순위:
+                // 1) 파일명에 교독문 번호(n)와 pptx/ppt가 포함된 파일
+                // 2) 3자리 패딩 번호 (예: 024)
+                const numStr = String(n);
+                const numStr3 = numStr.padStart(3, '0');
+                const numStr2 = numStr.padStart(2, '0');
+
+                let matchedFileName = fileNames.find(f => {
+                    if (f.startsWith('__MACOSX/') || f.endsWith('/')) return false;
+                    const lower = f.toLowerCase();
+                    if (!lower.endsWith('.pptx') && !lower.endsWith('.ppt')) return false;
+
+                    // 번호 단어 경계 또는 포함 매칭
+                    const regex = new RegExp(`(^|[^0-9])(${numStr}|${numStr2}|${numStr3})([^0-9]|$)`);
+                    return regex.test(f);
+                });
+
+                // Fallback: 파일명에 숫자 자체가 포함된 PPT/PPTX 파일 탐색
+                if (!matchedFileName) {
+                    matchedFileName = fileNames.find(f => {
+                        if (f.startsWith('__MACOSX/') || f.endsWith('/')) return false;
+                        const lower = f.toLowerCase();
+                        return (lower.endsWith('.pptx') || lower.endsWith('.ppt')) && f.includes(numStr);
+                    });
+                }
+
+                if (!matchedFileName) {
+                    throw new Error(`ZIP 파일(${zipFileName}) 내에서 교독문 ${n}번에 해당하는 PPTX 파일을 찾을 수 없습니다.\n\n[ZIP 내부 파일 목록 일부]:\n${fileNames.filter(f => !f.startsWith('__MACOSX/')).slice(0, 8).join('\n')}`);
+                }
+
+                // 3. 매칭된 단일 PPTX 파일의 바이너리 Blob 생성 및 다운로드 트리거
+                const ext = matchedFileName.toLowerCase().endsWith('.ppt') ? 'ppt' : 'pptx';
+                const pptxBlob = await zip.file(matchedFileName).async('blob');
+
+                const downloadFileName = `교독문_${n}번.${ext}`;
+                const blobUrl = URL.createObjectURL(pptxBlob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = downloadFileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+
+                showToast(`교독문 ${n}번 PPTX 파일 다운로드가 완료되었습니다!`, 'success');
+
+            } catch (err) {
+                console.error('[Gyodok Download Error]:', err);
+                alert(`🚨 교독문 PPT 다운로드 실패:\n\n${err.message}`);
+                showToast(`교독문 PPT 다운로드 실패: ${err.message}`, 'error');
+            } finally {
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                    downloadBtn.innerHTML = originalBtnHtml || `<i class="fa-solid fa-file-arrow-down"></i> <span>교독문 PPT 다운로드</span>`;
+                }
+            }
+        }
+
+        // Step 3 교독문 카드 다운로드 버튼 이벤트 리스너 바인딩
+        const downloadGyodokBtn = document.getElementById('downloadGyodokBtn');
+        if (downloadGyodokBtn) {
+            downloadGyodokBtn.addEventListener('click', async function() {
+                if (!detectedGyodokNo) {
+                    alert('다운로드할 교독문 번호(1~137)를 입력하거나 선택해주세요.');
+                    return;
+                }
+                await downloadSingleGyodokPptx(detectedGyodokNo);
+            });
+        }
 
         function escapeHtml(text) {
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
