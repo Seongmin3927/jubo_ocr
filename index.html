@@ -2401,8 +2401,22 @@
 
         // ===================================================
         // Google Gemini API 주보 사전 판별 로직 (/api/verify-jubo)
+        // 주보 검증 활성화 플래그 (true: 활성화, false: 비활성화)
+        // 사용자가 채팅창에 "주보 검증 on" 입력 시 활성화(true)로 전환됩니다.
         // ===================================================
+        const IS_JUBO_VERIFY_ENABLED = false;
+
         async function verifyJuboAndProceed(file) {
+            // [주보 검증 비활성화 모드]
+            // Gemini 사전 검증을 건너뛰고 기존 Naver CLOVA OCR 분석 파이프라인으로 바로 진입합니다.
+            if (!IS_JUBO_VERIFY_ENABLED) {
+                status.innerText = `[${file.name}] 이미지 등록 완료! Naver CLOVA OCR 분석을 시작합니다...`;
+                extractBtn.disabled = false;
+                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
+                await performOcr();
+                return;
+            }
+
             // 판별 중 사용자 로딩 상태 표시
             status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 주보 여부 확인 중... (AI 사전 검증)`;
             extractBtn.disabled = true;
