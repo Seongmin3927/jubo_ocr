@@ -5586,9 +5586,8 @@
                             if (endRun === -1) endRun = runRanges.length - 1;
 
                             // 1번 (설교자) 특수 처리:
-                            // 일반주일 양식은 이름(44pt)과 직분('목사' 32pt)이 별도 Run으로 나뉘어 있으므로 분리 주입
-                            // 다함께주일 양식은 [말씀] "{4번}"       {1번} 형태로 단일 Run에 위치하므로 전체 값(이름+직분) 그대로 치환
-                            if (matchObj.numStr === '1' && !isTogether) {
+                            // 이름(44pt)과 직분(32pt)을 분리 주입하여 일반주일 및 다함께주일 모두 직분 폰트 크기 32pt 적용
+                            if (matchObj.numStr === '1') {
                                 const fullVal = (pptxData['1번'] || '').trim();
                                 const titleMatch = fullVal.match(/[\s]*(담임목사|목사|전도사|강도사|장로|집사|권사)$/);
                                 let namePart = fullVal;
@@ -5606,7 +5605,7 @@
                                     runTexts[k] = "";
                                 }
 
-                                // 직분자 텍스트는 32pt (sz="3200") Run에 주입하여 폰트 크기 32pt 적용
+                                // 직분자 텍스트 주입 대상 탐색 (일반주일의 기존 32pt Run)
                                 let titleRunFound = false;
                                 for (let tIdx = endRun + 1; tIdx < runs.length; tIdx++) {
                                     const rNode = runs[tIdx];
@@ -5623,11 +5622,26 @@
                                     }
                                 }
 
-                                if (!titleRunFound && titlePart && endRun + 1 < runs.length) {
-                                    const nextR = runs[endRun + 1];
-                                    const rPr = nextR.getElementsByTagName('a:rPr')[0] || nextR.getElementsByTagName('rPr')[0];
-                                    if (rPr) rPr.setAttribute('sz', '3200');
-                                    runTexts[endRun + 1] = ' ' + titlePart;
+                                // 다함께주일 양식처럼 뒤에 별도 직분 Run이 없는 경우: 32pt의 직분 Run 동적 생성 및 삽입
+                                if (!titleRunFound && titlePart) {
+                                    const refRun = runs[endRun] || runs[startRun];
+                                    if (refRun && refRun.parentNode) {
+                                        const newR = refRun.cloneNode(true);
+                                        const newRPr = newR.getElementsByTagName('a:rPr')[0] || newR.getElementsByTagName('rPr')[0];
+                                        if (newRPr) {
+                                            newRPr.setAttribute('sz', '3200'); // 32pt
+                                        }
+                                        const newTNode = newR.getElementsByTagName('a:t')[0] || newR.getElementsByTagName('t')[0];
+                                        if (newTNode) {
+                                            newTNode.textContent = ' ' + titlePart;
+                                        }
+                                        // DOM 단락(p)에 새로운 32pt Run 삽입
+                                        if (refRun.nextSibling) {
+                                            refRun.parentNode.insertBefore(newR, refRun.nextSibling);
+                                        } else {
+                                            refRun.parentNode.appendChild(newR);
+                                        }
+                                    }
                                 }
                             } else {
                                 // 일반 항목 치환 (다함께주일의 1번 설교자 포함)
