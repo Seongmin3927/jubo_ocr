@@ -5177,6 +5177,17 @@
 
                 for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
                     const p = paragraphs[pIdx];
+
+                    // 한글 단어 잘림 허용 체크 해제 (latinLnBrk="0") 강제 설정
+                    let pPr = p.getElementsByTagName("a:pPr")[0];
+                    if (!pPr) {
+                        const nsURI = p.namespaceURI || "http://schemas.openxmlformats.org/drawingml/2006/main";
+                        const prefix = p.prefix ? p.prefix + ":" : "a:";
+                        pPr = xmlDoc.createElementNS(nsURI, prefix + "pPr");
+                        p.insertBefore(pPr, p.firstChild);
+                    }
+                    pPr.setAttribute("latinLnBrk", "0");
+
                     const tElements = p.getElementsByTagName("a:t");
                     if (tElements.length === 0) continue;
 
@@ -5222,11 +5233,15 @@
                 return serializer.serializeToString(xmlDoc);
             } catch (err) {
                 console.warn('[DOMParser Fallback in replaceSlidePlaceholders]:', err);
-                return slideXml
+                let fallbackXml = slideXml
                     .replace(/\(BOOK\)|\(성경\)/gi, item.bookFull)
                     .replace(/\(CHAPTER\)|\(장\)/gi, `${item.chapter}${chapterSuffix}`)
                     .replace(/\(VERSE\)|\(절\)/gi, `${item.verse}절`)
                     .replace(/\(CONTENT\)|\(본문\)/gi, item.content);
+                // 정규식 폴백 시에도 latinLnBrk="0" 보장
+                fallbackXml = fallbackXml.replace(/<a:pPr([^>]*?)latinLnBrk="[01]"([^>]*?)>/g, '<a:pPr$1latinLnBrk="0"$2>');
+                fallbackXml = fallbackXml.replace(/<a:pPr(?![^>]*?latinLnBrk)([^>]*?)>/g, '<a:pPr latinLnBrk="0"$1>');
+                return fallbackXml;
             }
         }
 
@@ -5341,6 +5356,14 @@
             }
             if (contentTypesOverrides) {
                 contentTypesXml = contentTypesXml.replace(/<\/Types>/, `${contentTypesOverrides}</Types>`);
+            }
+
+            // 4. 슬라이드 마스터(slideMaster) 및 레이아웃 내 줄바꿈 설정에서도 latinLnBrk="0" 일괄 적용
+            const masterFiles = Object.keys(zip.files).filter(f => f.startsWith("ppt/slideMasters/slideMaster") && f.endsWith(".xml"));
+            for (const mFile of masterFiles) {
+                let mXml = await zip.file(mFile).async("string");
+                mXml = mXml.replace(/latinLnBrk="1"/g, 'latinLnBrk="0"');
+                zip.file(mFile, mXml);
             }
 
             zip.file("ppt/presentation.xml", presentationXml);
