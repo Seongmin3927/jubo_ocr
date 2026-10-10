@@ -2023,6 +2023,7 @@
                         <p class="hub-card-desc">기존 PPTX 템플릿의 폰트 종류 및 크기(설교자 44pt/직분 32pt)를 100% 보존하며 자막을 생성합니다.</p>
                         
                         <div class="hub-card-meta">
+                            <div class="hub-meta-item"><strong>예배일자:</strong> <span id="summaryWorshipDate" style="font-weight: 700; color: #2563eb;">-</span></div>
                             <div class="hub-meta-item"><strong>설교자:</strong> <span id="summaryPreacher">-</span></div>
                             <div class="hub-meta-item"><strong>설교제목:</strong> <span id="summarySermonTitle">-</span></div>
                             <div class="hub-meta-item"><strong>찬송 배정:</strong> <span id="summaryHymns" style="font-weight: 700; color: #ea580c;">-</span></div>
@@ -2346,6 +2347,7 @@
             selectedFile = null;
             selectedBase64 = null;
             hasParsedData = false;
+            detectedWorshipDate = '';
             isHymnManuallyEdited = false;
             detectedHymnNumbers = [];
             detectedGyodokNo = null;
@@ -2409,10 +2411,15 @@
                 if (r && r.value) titleVal = r.value.trim();
             }
 
+            const summaryWorshipDate = document.getElementById('summaryWorshipDate');
             const summaryPreacher = document.getElementById('summaryPreacher');
             const summarySermonTitle = document.getElementById('summarySermonTitle');
             const summaryHymns = document.getElementById('summaryHymns');
 
+            if (summaryWorshipDate) {
+                const datePrefix = (typeof getWorshipDatePrefix === 'function') ? getWorshipDatePrefix() : '';
+                summaryWorshipDate.textContent = detectedWorshipDate ? `${detectedWorshipDate} (${datePrefix})` : (datePrefix ? `${datePrefix} (기본)` : '-');
+            }
             if (summaryPreacher) {
                 summaryPreacher.textContent = preacherVal || '(미입력)';
             }
@@ -2819,8 +2826,68 @@
         let selectedBase64 = null;
         let last15Results = [];
         let currentSundayType = "일반 주일";
+        let detectedWorshipDate = '';
         let isHymnManuallyEdited = false;
         let detectedGyodokNo = null;
+
+        // ===================================================
+        // 주보 예배 일자 파싱 및 파일명 접두어(YYMMDD) 생성 함수
+        // ===================================================
+        function formatDateToYYMMDD(dateStr) {
+            if (dateStr) {
+                // 1. 4자리 연도: "2026년 9월 27일", "2026. 9. 27", "2026-09-27", "2026.09.27", "2026/09/27"
+                const m4 = dateStr.match(/(\d{4})[.\-년\s/]+(\d{1,2})[.\-월\s/]+(\d{1,2})/);
+                if (m4) {
+                    const yy = m4[1].slice(-2);
+                    const mm = m4[2].padStart(2, '0');
+                    const dd = m4[3].padStart(2, '0');
+                    return `${yy}${mm}${dd}`;
+                }
+                // 2. 2자리 연도: "26.09.27", "26-09-27", "26년 9월 27일"
+                const m2 = dateStr.match(/(?:^|[^\d])(\d{2})[.\-년\s/]+(\d{1,2})[.\-월\s/]+(\d{1,2})/);
+                if (m2) {
+                    const yy = m2[1];
+                    const mm = m2[2].padStart(2, '0');
+                    const dd = m2[3].padStart(2, '0');
+                    return `${yy}${mm}${dd}`;
+                }
+                // 3. 연도 생략된 경우: "9월 27일"
+                const mMonthDay = dateStr.match(/(\d{1,2})[.\-월\s]+(\d{1,2})/);
+                if (mMonthDay) {
+                    const now = new Date();
+                    const yy = String(now.getFullYear()).slice(-2);
+                    const mm = mMonthDay[1].padStart(2, '0');
+                    const dd = mMonthDay[2].padStart(2, '0');
+                    return `${yy}${mm}${dd}`;
+                }
+            }
+
+            // 폴백: 오늘 날짜
+            const now = new Date();
+            const yy = String(now.getFullYear()).slice(-2);
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            return `${yy}${mm}${dd}`;
+        }
+
+        function getWorshipDatePrefix() {
+            let dateStr = detectedWorshipDate;
+
+            // 1. detectedWorshipDate가 없으면 currentDynamicItems에서 날짜 관련 항목 탐색
+            if (!dateStr && Array.isArray(currentDynamicItems)) {
+                const dateItem = currentDynamicItems.find(it => /(?:날짜|일시|일자|발행일|주일)/i.test(it.key || ''));
+                if (dateItem && dateItem.value) dateStr = dateItem.value;
+            }
+
+            // 2. 여전히 없다면 resultText(OCR 전문)에서 정규식 탐색
+            if (!dateStr) {
+                const ocrText = (document.getElementById('resultText')?.value || '');
+                const m = ocrText.match(/(\d{4})[.\-년\s]+(\d{1,2})[.\-월\s]+(\d{1,2})/);
+                if (m) dateStr = m[0];
+            }
+
+            return formatDateToYYMMDD(dateStr);
+        }
 
         const uploadDropZone = document.getElementById('uploadDropZone');
 
@@ -2974,6 +3041,25 @@
             extractBtn.disabled = false;
             extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>분석 완료</span>`;
             status.innerText = '주보 확인 및 핵심정보 추출 완료!';
+
+            // 예배 일자 및 다함께 주일 여부 반영
+            if (processData.worship_date) {
+                detectedWorshipDate = String(processData.worship_date).trim();
+            }
+
+            if (typeof processData.is_together_sunday === 'boolean') {
+                if (processData.is_together_sunday) {
+                    currentSundayType = "다함께 주일";
+                    if (sundayBadge) sundayBadge.innerText = "다함께 주일";
+                    if (sundayTypeBanner) sundayTypeBanner.className = "sunday-type-banner together-sunday";
+                    if (sundayDesc) sundayDesc.innerText = "💡 AI 분석: '다함께 주일' 감지 (1부 예배 없이 통합 예배 진행)";
+                } else {
+                    currentSundayType = "일반 주일";
+                    if (sundayBadge) sundayBadge.innerText = "일반 주일";
+                    if (sundayTypeBanner) sundayTypeBanner.className = "sunday-type-banner";
+                    if (sundayDesc) sundayDesc.innerText = "💡 AI 분석: '일반 주일' 감지 (1부 및 2부 예배 진행)";
+                }
+            }
 
             currentDynamicItems = Array.isArray(processData.extracted_items) ? processData.extracted_items : [];
 
@@ -5089,12 +5175,8 @@
                     });
                 }
 
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const day = String(now.getDate()).padStart(2, '0');
-                const cleanPassageName = passageStr.replace(/[\s:~\-]+/g, '_');
-                const outputFileName = `${year}-${month}-${day}_성경봉독_${cleanPassageName}.pptx`;
+                const datePrefix = getWorshipDatePrefix();
+                const outputFileName = `${datePrefix}_성경봉독.pptx`;
 
                 // 2. 템플릿 ArrayBuffer 확보 (사용자 커스텀 업로드 파일 OR 기본 templates/성경봉독자막양식.pptx)
                 let templateBuffer = null;
@@ -5472,12 +5554,9 @@
                     mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
                 });
 
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const day = String(now.getDate()).padStart(2, '0');
+                const datePrefix = getWorshipDatePrefix();
                 const typeLabel = isTogether ? '다함께주일예배자막' : '주일예배자막';
-                const fileName = `${year}-${month}-${day}_${typeLabel}.pptx`;
+                const fileName = `${datePrefix}_${typeLabel}.pptx`;
 
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

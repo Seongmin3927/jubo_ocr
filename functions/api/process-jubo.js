@@ -193,7 +193,12 @@ ${gatekeeperInstruction}
   * 성시교독 / 교독문 번호 (예: "교독문 24번")
   * 찬양대(특송) 찬양곡명
 - 인명 표기 원칙: 괄호 설명이나 인도자 병기 없이 해당 직무의 이름(및 직분)만 간결하게 표기 (예: "채충원 목사", "박동식 장로").
-- '해당 없음' 배제: 문서에 없는 항목(예: 성시교독 없음, 1/2부 구분 없음)은 목록에 아예 포함하지 말 것.`;
+- '해당 없음' 배제: 문서에 없는 항목(예: 성시교독 없음, 1/2부 구분 없음)은 목록에 아예 포함하지 말 것.
+
+3. 예배 일자 및 주일 구분 (전용 필드에 기재):
+- worship_date: 주보 상단/하단/표지 등에 기재된 예배 일자 또는 발행 일자(예: "2026년 9월 27일", "2026. 9. 27", "2026-09-27" 등)를 찾아 기재하십시오. 찾을 수 없는 경우 빈 문자열("")로 반환하십시오.
+- is_together_sunday: 주보에 '다함께주일' 또는 '다함께예배'가 명시되어 있으면 true, 일반 주일이면 false로 응답하십시오.
+- (※ 주의: worship_date와 is_together_sunday는 extracted_items 배열에는 중복 포함하지 마십시오.)`;
 
   const geminiPayload = {
     system_instruction: {
@@ -211,7 +216,7 @@ ${gatekeeperInstruction}
             }
           },
           {
-            text: "제공된 이미지를 분석하여 주보 판별 여부 및 핵심 정보들을 지정된 JSON 스키마 규격으로 응답하십시오."
+            text: "제공된 이미지를 분석하여 주보 판별 여부, 예배 일자, 다함께주일 여부 및 핵심 정보들을 지정된 JSON 스키마 규격으로 응답하십시오."
           }
         ]
       }
@@ -228,6 +233,14 @@ ${gatekeeperInstruction}
           reject_reason: {
             type: "STRING",
             description: "주보가 아닌 경우 거절 사유 (주보인 경우 빈 문자열)"
+          },
+          worship_date: {
+            type: "STRING",
+            description: "주보에 기재된 예배 일자 (예: 2026년 9월 27일, 2026.09.27. 미기재 시 빈 문자열)"
+          },
+          is_together_sunday: {
+            type: "BOOLEAN",
+            description: "다함께주일 여부 (true/false)"
           },
           extracted_items: {
             type: "ARRAY",
@@ -248,7 +261,7 @@ ${gatekeeperInstruction}
             }
           }
         },
-        required: ["is_jubo", "reject_reason", "extracted_items"]
+        required: ["is_jubo", "reject_reason", "worship_date", "is_together_sunday", "extracted_items"]
       },
       temperature: 0.1
     }
@@ -327,6 +340,8 @@ ${gatekeeperInstruction}
   const finalResult = {
     is_jubo: IS_JUBO_VERIFICATION_ENABLED ? Boolean(parsed.is_jubo) : true,
     reject_reason: IS_JUBO_VERIFICATION_ENABLED ? (parsed.reject_reason || '') : '',
+    worship_date: parsed.worship_date || '',
+    is_together_sunday: Boolean(parsed.is_together_sunday),
     extracted_items: Array.isArray(parsed.extracted_items) ? parsed.extracted_items : []
   };
 
