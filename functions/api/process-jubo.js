@@ -22,7 +22,7 @@
 // - false: 주보 사전 판별 비활성화 (OFF: 주보 판별 여부와 관계없이 무조건 통과 및 핵심정보 추출)
 // ※ 채팅창에 "주보 검증 on" 요청 시 true로 변경하여 즉시 재활성화 가능
 // =========================================================================
-export const IS_JUBO_VERIFICATION_ENABLED = false;
+export const IS_JUBO_VERIFICATION_ENABLED = true;
 
 export async function onRequestPost(context) {
   const { request, env } = context;
