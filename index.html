@@ -998,6 +998,34 @@
             color: #dc2626;
             transform: scale(1.05);
         }
+        .btn-search-cell {
+            background: rgba(37, 99, 235, 0.08);
+            border: 1px solid rgba(37, 99, 235, 0.25);
+            color: #2563eb;
+            padding: 0 11px;
+            height: 34px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            font-weight: 700;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .btn-search-cell:hover {
+            background: rgba(37, 99, 235, 0.18);
+            border-color: #2563eb;
+            color: #1d4ed8;
+            transform: scale(1.03);
+        }
+        .btn-search-cell:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+        }
         .dynamic-card-footer {
             margin-bottom: 20px;
         }
@@ -1910,9 +1938,9 @@
                     <table class="dynamic-extracted-table">
                         <thead>
                             <tr>
-                                <th style="width: 28%;">항목명 (Key)</th>
-                                <th style="width: 58%;">추출 내용 (Value - 클릭하여 즉시 수정)</th>
-                                <th style="width: 14%; text-align: center;">관리</th>
+                                <th style="width: 26%;">항목명 (Key)</th>
+                                <th style="width: 54%;">추출 내용 (Value - 클릭하여 즉시 수정)</th>
+                                <th style="width: 20%; text-align: center;">관리</th>
                             </tr>
                         </thead>
                         <tbody id="dynamicTableBody">
@@ -1930,9 +1958,6 @@
                 <div class="dynamic-confirm-actions">
                     <button type="button" class="btn-confirm-secondary" onclick="copyDynamicItems()">
                         <i class="fa-regular fa-clipboard"></i> 텍스트 복사
-                    </button>
-                    <button type="button" class="btn-confirm-primary" onclick="confirmDynamicItems()">
-                        <i class="fa-solid fa-circle-check"></i> 데이터 확정하기 (자막 생성 단계로)
                     </button>
                 </div>
             </div>
@@ -1957,13 +1982,13 @@
                 <textarea id="resultText" readonly placeholder="추출된 원본 텍스트"></textarea>
             </details>
 
-            <!-- Step 2 하단 액션 버튼 바 -->
+            <!-- Step 2 하단 액션 버튼 바 (통합된 데이터 확정 버튼) -->
             <div class="step-action-bar">
                 <button type="button" class="btn-nav-back" onclick="confirmResetToStep1()">
                     <i class="fa-solid fa-arrow-left"></i> 다시 업로드하기
                 </button>
-                <button type="button" class="btn-nav-next" onclick="setStep(3)">
-                    다음: 자막 및 자료 생성 단계로 <i class="fa-solid fa-arrow-right"></i>
+                <button type="button" class="btn-nav-next" id="confirmDataBtn" onclick="confirmDynamicItems()">
+                    <i class="fa-solid fa-circle-check"></i> 데이터 확정하기 (자막 생성) <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
         </div>
@@ -2989,19 +3014,24 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>
-                        <input type="text" class="cell-key-input" value="${escapeHtml(item.key || '')}" 
-                               placeholder="항목명" onchange="updateDynamicItemKey(${index}, this.value)">
+                        <input type="text" class="cell-key-input" id="dynamicKeyInput_${index}" value="${escapeHtml(item.key || '')}" 
+                               placeholder="항목명 (예: 봉헌기도)" oninput="updateDynamicItemKey(${index}, this.value)">
                     </td>
                     <td>
                         <div class="editable-value-wrapper">
-                            <input type="text" class="cell-value-input" value="${escapeHtml(item.value || '')}" 
-                                   placeholder="내용 입력 (클릭하여 수정)" oninput="updateDynamicItemValue(${index}, this.value)">
+                            <input type="text" class="cell-value-input" id="dynamicValueInput_${index}" value="${escapeHtml(item.value || '')}" 
+                                   placeholder="내용 입력 (또는 우측 [탐색] 버튼 클릭)" oninput="updateDynamicItemValue(${index}, this.value)">
                         </div>
                     </td>
                     <td style="text-align: center;">
-                        <button type="button" class="btn-delete-cell" onclick="deleteDynamicRow(${index})" title="이 항목 삭제">
-                            <i class="fa-solid fa-trash-can"></i> 삭제
-                        </button>
+                        <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: center;">
+                            <button type="button" class="btn-search-cell" id="searchBtn_${index}" onclick="searchDynamicItem(${index})" title="주보 이미지에서 '${escapeHtml(item.key || '항목')}' 내용 자동 탐색">
+                                <i class="fa-solid fa-magnifying-glass"></i> 탐색
+                            </button>
+                            <button type="button" class="btn-delete-cell" onclick="deleteDynamicRow(${index})" title="이 항목 삭제">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -3032,14 +3062,88 @@
         }
 
         function addDynamicRow() {
-            currentDynamicItems.push({ key: '새 항목', value: '' });
+            currentDynamicItems.push({ key: '', value: '' });
             renderDynamicItems(currentDynamicItems);
             syncDynamicItemsToPptxForms(currentDynamicItems);
             const inputs = document.querySelectorAll('#dynamicTableBody .cell-key-input');
             if (inputs.length > 0) {
                 const last = inputs[inputs.length - 1];
+                last.placeholder = "항목명 입력 (예: 봉헌기도)";
                 last.focus();
-                last.select();
+            }
+        }
+
+        // ===================================================
+        // 주보 이미지에서 특정 항목 AI 정밀 탐색 기능
+        // ===================================================
+        async function searchDynamicItem(index) {
+            const item = currentDynamicItems[index];
+            if (!item) return;
+
+            const key = (item.key || '').trim();
+            if (!key) {
+                showToast('탐색할 항목명(Key)을 먼저 입력해주세요. (예: 봉헌기도, 교회소식)', 'warning');
+                const keyInput = document.getElementById(`dynamicKeyInput_${index}`);
+                if (keyInput) keyInput.focus();
+                return;
+            }
+
+            if (!selectedFile) {
+                showToast('탐색할 주보 이미지가 없습니다. 이미지를 먼저 업로드해주세요.', 'error');
+                return;
+            }
+
+            const searchBtn = document.getElementById(`searchBtn_${index}`);
+            const valInput = document.getElementById(`dynamicValueInput_${index}`);
+            const originalBtnHtml = searchBtn ? searchBtn.innerHTML : '';
+
+            try {
+                if (searchBtn) {
+                    searchBtn.disabled = true;
+                    searchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 탐색 중...`;
+                }
+                if (valInput) {
+                    valInput.placeholder = `'${key}' 정보를 주보에서 AI 탐색 중...`;
+                }
+
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('key', key);
+
+                const res = await fetch('/api/find-jubo-item', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.reason || `[HTTP ${res.status}] 항목 탐색 서버 오류`);
+                }
+
+                const data = await res.json();
+                if (data.found && data.value) {
+                    currentDynamicItems[index].value = data.value;
+                    if (valInput) valInput.value = data.value;
+                    syncDynamicItemsToPptxForms(currentDynamicItems);
+                    showToast(`'${key}' 항목을 주보에서 찾아 반영했습니다: ${data.value}`, 'success');
+                } else {
+                    showToast(`'${key}' 관련 정보를 주보에서 찾지 못했습니다. 직접 입력해주세요.`, 'warning');
+                    if (valInput) {
+                        valInput.placeholder = "내용 입력 (클릭하여 수정)";
+                        valInput.focus();
+                    }
+                }
+            } catch (err) {
+                console.error('[searchDynamicItem Error]:', err);
+                showToast(`'${key}' 탐색 중 오류 발생: ${err.message}`, 'error');
+            } finally {
+                if (searchBtn) {
+                    searchBtn.disabled = false;
+                    searchBtn.innerHTML = originalBtnHtml || `<i class="fa-solid fa-magnifying-glass"></i> 탐색`;
+                }
+                if (valInput && !valInput.value) {
+                    valInput.placeholder = "내용 입력 (또는 우측 [탐색] 버튼 클릭)";
+                }
             }
         }
 
@@ -3160,29 +3264,26 @@
             // 두번째 나오는 찬송가 장수 ➔ 두번째 자리 ({4번}, ruleDefs[3])
             // 세번째 나오는 찬송가 장수 ➔ 세번째 자리 ({12번}, {13번}, ruleDefs[11], ruleDefs[12])
 
-            // 슬라이드 위치별 규격 서식 포매터
+            // 슬라이드 위치별 규격 서식 포매터 - 모든 찬송가 장수 앞에 항상 "찬송가" 표기 강제 (예: "찬송가 3장", "찬송가 187장", "찬송가 191장")
             const formatHymnForSpot = (hymnObj, spotIndex) => {
                 if (!hymnObj) return "";
                 const num = hymnObj.num;
                 const raw = (hymnObj.raw || '').trim();
 
-                if (spotIndex === 1) {
-                    // 슬라이드 11 양식: [{2번}]- ppt ➔ '찬송가 N장' 적용
-                    if (/^찬송가\s*\d+\s*장?/i.test(raw)) {
-                        return raw.includes('장') ? raw : `${raw}장`;
-                    }
-                    return `찬송가 ${num}장`;
-                } else {
-                    // 슬라이드 13 양식: [{4번}] (ppt) / 슬라이드 22: [찬송] 1부-{12번}, 2부-{13번} ➔ 'N장' 적용
-                    if (/^\d+\s*장?$/i.test(raw)) {
-                        return raw.includes('장') ? raw : `${raw}장`;
-                    }
-                    if (/^찬송가?\s*(\d+\s*장?)$/i.test(raw)) {
-                        const m = raw.match(/\d+\s*장?/);
-                        return m ? (m[0].includes('장') ? m[0] : `${m[0]}장`) : `${num}장`;
-                    }
-                    return `${num}장`;
+                let hymnNum = num;
+                if (!hymnNum) {
+                    const m = raw.match(/\d+/);
+                    if (m) hymnNum = parseInt(m[0], 10);
                 }
+
+                if (hymnNum && !isNaN(hymnNum)) {
+                    return `찬송가 ${hymnNum}장`;
+                }
+
+                if (raw) {
+                    return raw.startsWith('찬송가') ? raw : `찬송가 ${raw}`;
+                }
+                return "";
             };
 
             // 전체 items에서 찬송가 장수들을 등장 순서대로 수집 (주일 대예배 회중 찬송 중심)
@@ -3305,7 +3406,7 @@
             ]);
             if (explicitHymn13) {
                 const m = explicitHymn13.match(/\d+/);
-                ruleDefs[12].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn13 } : null, 3) || explicitHymn13;
+                ruleDefs[12].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn13 } : { raw: explicitHymn13 }, 3);
             }
 
             // 3) 명시적 1·2번째 찬송 키 확인
@@ -3313,11 +3414,11 @@
             const explicitHymn2 = findVal(['두번째 찬송', '찬송 2', '두번째찬송', '설교전 찬송', '설교 전 찬송']);
             if (explicitHymn1) {
                 const m = explicitHymn1.match(/\d+/);
-                ruleDefs[1].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn1 } : null, 1) || explicitHymn1;
+                ruleDefs[1].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn1 } : { raw: explicitHymn1 }, 1);
             }
             if (explicitHymn2) {
                 const m = explicitHymn2.match(/\d+/);
-                ruleDefs[3].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn2 } : null, 2) || explicitHymn2;
+                ruleDefs[3].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn2 } : { raw: explicitHymn2 }, 2);
             }
 
             // 4) 순서대로 등장한 찬송가(orderedHymns)를 각 자리에 배정
