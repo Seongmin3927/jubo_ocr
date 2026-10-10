@@ -3513,44 +3513,48 @@
             // 4. 세번째 찬송가 장수 ➔ 13번 자리 ({13번}, ruleDefs[12]) 에만 적용
             // ==============================================
 
-            // 1) 1부 설교후 찬송 제목(곡명) 탐색 ➔ ruleDefs[11] (12번 자리)
-            let praise1Title = findVal([
+            // 1) 설교후 찬송 제목/곡명/장수 탐색
+            let sermonPraiseCandidate = findVal([
                 '1부 설교후 찬양', '1부 설교후 찬송', '1부 설교 후 찬양', '1부 설교 후 찬송',
                 '설교후 찬양 [1부]', '설교후 찬송 [1부]', '설교 후 찬양 [1부]', '설교 후 찬송 [1부]',
+                '설교후 찬양', '설교 후 찬양', '설교후 찬송', '설교 후 찬송', '설교후찬양', '설교후찬송',
+                '결단찬양', '결단 찬송', '결단찬송', '파송찬양', '파송 찬송', '파송찬송', '응답찬양', '응답찬송',
                 '1부 결단찬양', '1부 결단찬송', '1부 찬양', '1부 파송찬양'
             ]);
 
-            // items 전체에서 1부 찬양 관련 곡명 탐색
-            if (!praise1Title) {
+            // items 전체에서 설교후 찬양 관련 곡명 탐색
+            if (!sermonPraiseCandidate) {
                 for (const it of items) {
                     const k = (it.key || '').trim();
                     const v = (it.value || '').trim();
-                    if (/1부/i.test(k) && /(?:찬양|찬송|결단)/i.test(k) && !/(?:기도|봉독|안내|시간)/i.test(k)) {
-                        praise1Title = v;
+                    if (/(?:설교\s*후|설교후|결단|파송|응답)/i.test(k) && /(?:찬양|찬송)/i.test(k) && !/(?:기도|봉독|안내|시간)/i.test(k)) {
+                        sermonPraiseCandidate = v;
                         break;
                     }
                 }
             }
 
-            // 복합 라인에서 '1부: <곡명>' 패턴 파싱 (예: "1부: 은혜로다 / 2부: 191장")
-            if (!praise1Title) {
-                const combinedSermonPraise = findVal([
-                    '설교후 찬양', '설교 후 찬양', '설교후 찬송', '설교 후 찬송', 
-                    '결단찬양', '결단 찬송', '결단찬송', '파송찬양', '파송찬송'
-                ]);
-                if (combinedSermonPraise) {
-                    const m1 = combinedSermonPraise.match(/1부\s*[:\s]*([^/,\n]+?)(?=\s*(?:\/|,|\s*2부|$))/);
-                    if (m1) {
-                        praise1Title = m1[1].replace(/[\/|]/g, '').trim();
-                    } else if (!/\b\d{1,3}\s*장\b/.test(combinedSermonPraise)) {
-                        // 만약 장수 표기 없이 순수 곡명인 경우
-                        praise1Title = combinedSermonPraise.trim();
-                    }
+            let praise1Title = '';
+            if (sermonPraiseCandidate) {
+                const m1 = sermonPraiseCandidate.match(/1부\s*[:\s]*([^/,\n]+?)(?=\s*(?:\/|,|\s*2부|$))/);
+                if (m1) {
+                    praise1Title = m1[1].replace(/[\/|]/g, '').trim();
+                } else {
+                    praise1Title = sermonPraiseCandidate.trim();
                 }
             }
 
             if (praise1Title) {
-                ruleDefs[11].value = praise1Title.trim();
+                // 곡명인 경우 그대로, 장수인 경우 "찬송가 N장" 형태로 정규화
+                const mJang = praise1Title.match(/(\d+)\s*장/);
+                if (mJang) {
+                    praise1Title = formatHymnForSpot({ num: parseInt(mJang[1], 10), raw: praise1Title }, 3);
+                }
+                ruleDefs[11].value = praise1Title;
+                // 다함께주일(단일 예배)의 경우 12번과 13번에 동일하게 배정
+                if (currentSundayType === "다함께 주일") {
+                    ruleDefs[12].value = praise1Title;
+                }
             }
 
             // 2) 명시적 2부 설교후 찬송 (장수) 확인 ➔ ruleDefs[12] (13번 자리)
@@ -3577,10 +3581,12 @@
             }
 
             // 4) 순서대로 등장한 찬송가(orderedHymns)를 각 자리에 배정
-            // 다함께주일인 경우: 주보에 찬송가가 1곡만 명시되어 있어도 설교후 찬양(13번 자리)에 자동 배정되도록 지원
             const isTogetherSundayMode = currentSundayType === "다함께 주일";
-            if (isTogetherSundayMode && orderedHymns.length === 1 && !ruleDefs[12].value) {
-                ruleDefs[12].value = formatHymnForSpot(orderedHymns[0], 3);
+            if (isTogetherSundayMode) {
+                // 다함께주일: 주보에 찬송가가 몇 곡이든, 설교후 찬양이 비어있다면 마지막 찬송가(설교후 찬양 순서)를 13번(설교후 찬양)에 배정
+                if (!ruleDefs[12].value && orderedHymns.length > 0) {
+                    ruleDefs[12].value = formatHymnForSpot(orderedHymns[orderedHymns.length - 1], 3);
+                }
             }
 
             // 첫번째 찬송가 ➔ 첫번째 자리 ({2번}, ruleDefs[1])
@@ -5411,7 +5417,25 @@
                     const scriptureVal = pptxData['9번'] || '';
                     const sermonTitleVal = pptxData['11번'] || '';
                     const readerVal = pptxData['7번'] || pptxData['8번'] || '';
-                    const praiseVal = pptxData['13번'] || pptxData['12번'] || '';
+                    
+                    // 설교후 찬양 결정: 13번 -> 12번 -> 4번(두번째 찬송) -> 2번(첫번째 찬송) -> currentDynamicItems 탐색
+                    let praiseVal = pptxData['13번'] || pptxData['12번'] || '';
+                    if (!praiseVal && Array.isArray(currentDynamicItems)) {
+                        for (const it of currentDynamicItems) {
+                            const k = (it.key || '').trim();
+                            const v = (it.value || '').trim();
+                            if (/(?:설교\s*후|설교후|결단|파송|응답|찬송|찬양)/i.test(k) && !/(?:기도|봉독|안내|시간|찬양대|두레찬양|특송)/i.test(k) && !/(?:기도|봉독)/i.test(v)) {
+                                if (v) {
+                                    const mJang = v.match(/(\d+)\s*장/);
+                                    praiseVal = mJang ? `찬송가 ${mJang[1]}장` : v;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (!praiseVal) {
+                        praiseVal = pptxData['4번'] || pptxData['2번'] || '';
+                    }
 
                     pptxData['1번'] = preacherVal;
                     pptxData['2번'] = prayerVal;
