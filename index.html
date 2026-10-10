@@ -3577,6 +3577,12 @@
             }
 
             // 4) 순서대로 등장한 찬송가(orderedHymns)를 각 자리에 배정
+            // 다함께주일인 경우: 주보에 찬송가가 1곡만 명시되어 있어도 설교후 찬양(13번 자리)에 자동 배정되도록 지원
+            const isTogetherSundayMode = currentSundayType === "다함께 주일";
+            if (isTogetherSundayMode && orderedHymns.length === 1 && !ruleDefs[12].value) {
+                ruleDefs[12].value = formatHymnForSpot(orderedHymns[0], 3);
+            }
+
             // 첫번째 찬송가 ➔ 첫번째 자리 ({2번}, ruleDefs[1])
             if (!ruleDefs[1].value && orderedHymns.length >= 1) {
                 ruleDefs[1].value = formatHymnForSpot(orderedHymns[0], 1);
@@ -5391,19 +5397,28 @@
                     pptxData[`${i}번`] = val;
                 }
 
-                // 다함께 주일(1부/2부 구분 없는 단일 예배) 동기화 보완
+                // 다함께 주일(1부/2부 구분 없는 단일 예배) 매핑 재구성
+                // 다함께주일 양식(다함께주일예배자막양식.pptx)의 실제 플레이스홀더 번호:
+                // {1번}: 설교자 (전체 이름+직분, 예: 홍길동 목사)
+                // {2번}: 대표기도자 (slide 14: 대표기도 {2번})
+                // {3번}: 성경본문 (slide 15: 성경봉독({3번}))
+                // {4번}: 설교제목 (slide 16: [말씀] "{4번}")
+                // {5번}: 성경봉독자 (slide 15: {5번})
+                // {6번}: 설교후 찬양 (slide 17: [찬송] {6번}- ppt)
                 if (isTogether) {
+                    const preacherVal = pptxData['1번'] || '';
                     const prayerVal = pptxData['5번'] || pptxData['6번'] || '';
-                    pptxData['5번'] = prayerVal;
-                    pptxData['6번'] = prayerVal;
-
+                    const scriptureVal = pptxData['9번'] || '';
+                    const sermonTitleVal = pptxData['11번'] || '';
                     const readerVal = pptxData['7번'] || pptxData['8번'] || '';
-                    pptxData['7번'] = readerVal;
-                    pptxData['8번'] = readerVal;
+                    const praiseVal = pptxData['13번'] || pptxData['12번'] || '';
 
-                    const praiseVal = pptxData['12번'] || pptxData['13번'] || '';
-                    pptxData['12번'] = praiseVal;
-                    pptxData['13번'] = praiseVal;
+                    pptxData['1번'] = preacherVal;
+                    pptxData['2번'] = prayerVal;
+                    pptxData['3번'] = scriptureVal;
+                    pptxData['4번'] = sermonTitleVal;
+                    pptxData['5번'] = readerVal;
+                    pptxData['6번'] = praiseVal;
                 }
 
                 // 2. 템플릿 ArrayBuffer 확보 (업로드 파일 OR 주일 종류별 default fetch)
@@ -5546,8 +5561,10 @@
                             if (startRun === -1) startRun = 0;
                             if (endRun === -1) endRun = runRanges.length - 1;
 
-                            // 1번 (설교자) 특수 처리: 이름 부분(44pt)과 직분자 텍스트(32pt) 분리 주입
-                            if (matchObj.numStr === '1') {
+                            // 1번 (설교자) 특수 처리:
+                            // 일반주일 양식은 이름(44pt)과 직분('목사' 32pt)이 별도 Run으로 나뉘어 있으므로 분리 주입
+                            // 다함께주일 양식은 [말씀] "{4번}"       {1번} 형태로 단일 Run에 위치하므로 전체 값(이름+직분) 그대로 치환
+                            if (matchObj.numStr === '1' && !isTogether) {
                                 const fullVal = (pptxData['1번'] || '').trim();
                                 const titleMatch = fullVal.match(/[\s]*(담임목사|목사|전도사|강도사|장로|집사|권사)$/);
                                 let namePart = fullVal;
@@ -5589,12 +5606,9 @@
                                     runTexts[endRun + 1] = ' ' + titlePart;
                                 }
                             } else {
-                                // 일반 항목 치환
+                                // 일반 항목 치환 (다함께주일의 1번 설교자 포함)
                                 const spanText = runTexts.slice(startRun, endRun + 1).join("");
-                                let newSpanText = spanText.replace(matchObj.matchStr, replVal);
-                                if (isTogether && !replVal && (matchObj.numStr === '2' || matchObj.numStr === '3' || matchObj.numStr === '4')) {
-                                    newSpanText = "";
-                                }
+                                const newSpanText = spanText.replace(matchObj.matchStr, replVal !== undefined && replVal !== null ? replVal : "");
 
                                 runTexts[startRun] = newSpanText;
                                 for (let k = startRun + 1; k <= endRun; k++) {
