@@ -847,6 +847,227 @@
             resize: vertical;
         }
 
+        /* Dynamic Extracted Items Table & Editing UI */
+        .dynamic-extracted-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+        }
+        .dynamic-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #f1f5f9;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .dynamic-header-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dynamic-count-badge {
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 12px;
+            border: 1px solid #bfdbfe;
+        }
+        .btn-table-action {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-table-action:hover {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .dynamic-table-wrapper {
+            overflow-x: auto;
+            margin-bottom: 16px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        .dynamic-extracted-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92rem;
+            text-align: left;
+        }
+        .dynamic-extracted-table thead th {
+            background: #f8fafc;
+            color: var(--gray-600);
+            font-weight: 700;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.85rem;
+        }
+        .dynamic-extracted-table tbody tr {
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.15s;
+        }
+        .dynamic-extracted-table tbody tr:hover {
+            background: #f8fafc;
+        }
+        .dynamic-extracted-table tbody tr:last-child {
+            border-bottom: none;
+        }
+        .dynamic-extracted-table td {
+            padding: 10px 14px;
+            vertical-align: middle;
+        }
+        .cell-key-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 8px;
+            font-weight: 700;
+            color: #1e293b;
+            background: #ffffff;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .cell-key-input:focus {
+            border-color: #2563eb;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+        .editable-value-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .cell-value-input {
+            width: 100%;
+            padding: 8px 34px 8px 12px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 8px;
+            font-weight: 600;
+            color: #2563eb;
+            background: #ffffff;
+            font-size: 0.92rem;
+            transition: all 0.2s;
+        }
+        .cell-value-input:focus {
+            border-color: #2563eb;
+            background: #ffffff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+        .cell-edit-icon {
+            position: absolute;
+            right: 12px;
+            color: #94a3b8;
+            pointer-events: none;
+            font-size: 0.82rem;
+        }
+        .btn-delete-cell {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #ef4444;
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-delete-cell:hover {
+            background: #fecaca;
+            color: #dc2626;
+            transform: scale(1.05);
+        }
+        .dynamic-card-footer {
+            margin-bottom: 20px;
+        }
+        .btn-add-item-dashed {
+            width: 100%;
+            padding: 11px;
+            background: #f8fafc;
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            color: #475569;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-add-item-dashed:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #2563eb;
+        }
+        .dynamic-confirm-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding-top: 16px;
+            border-top: 1px solid #f1f5f9;
+            flex-wrap: wrap;
+        }
+        .btn-confirm-primary {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        }
+        .btn-confirm-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+        }
+        .btn-confirm-secondary {
+            background: #f1f5f9;
+            color: var(--gray-700);
+            border: 1px solid #cbd5e1;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s;
+        }
+        .btn-confirm-secondary:hover {
+            background: #e2e8f0;
+            color: var(--gray-900);
+        }
+
         /* Bottom Step Action Bar */
         .step-action-bar {
             display: flex;
@@ -1608,6 +1829,52 @@
                 <button id="copy15Btn" class="btn-secondary-action"><i class="fa-solid fa-copy"></i> 전체 텍스트 복사</button>
             </div>
 
+            <!-- 동적 핵심정보 자동 추출 카드 & 인라인 편집 UI -->
+            <div class="dynamic-extracted-card" id="dynamicExtractedCard">
+                <div class="dynamic-card-header">
+                    <div class="dynamic-header-title">
+                        <i class="fa-solid fa-list-check" style="color: var(--theme-accent);"></i>
+                        <span>AI 동적 핵심정보 자동 추출</span>
+                        <span class="dynamic-count-badge" id="dynamicCountBadge">0개 항목</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-table-action" onclick="copyDynamicItems()">
+                            <i class="fa-solid fa-copy"></i> 항목 전체 복사
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dynamic-table-wrapper">
+                    <table class="dynamic-extracted-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 28%;">항목명 (Key)</th>
+                                <th style="width: 58%;">추출 내용 (Value - 클릭하여 즉시 수정)</th>
+                                <th style="width: 14%; text-align: center;">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dynamicTableBody">
+                            <!-- 동적 항목 행(Row)들이 여기에 렌더링됩니다 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="dynamic-card-footer">
+                    <button type="button" class="btn-add-item-dashed" onclick="addDynamicRow()">
+                        <i class="fa-solid fa-plus"></i> 새 항목 추가
+                    </button>
+                </div>
+
+                <div class="dynamic-confirm-actions">
+                    <button type="button" class="btn-confirm-secondary" onclick="copyDynamicItems()">
+                        <i class="fa-regular fa-clipboard"></i> 텍스트 복사
+                    </button>
+                    <button type="button" class="btn-confirm-primary" onclick="confirmDynamicItems()">
+                        <i class="fa-solid fa-circle-check"></i> 데이터 확정하기 (자막 생성 단계로)
+                    </button>
+                </div>
+            </div>
+
             <!-- 4개 그룹별 인라인 편집 폼 컨테이너 -->
             <div id="groupedFormsContainer" class="grouped-forms-grid">
                 <!-- Group A, B, C, D 카드가 동적으로 렌더링됩니다 -->
@@ -1963,6 +2230,12 @@
 
             const groupedFormsContainer = document.getElementById('groupedFormsContainer');
             if (groupedFormsContainer) groupedFormsContainer.innerHTML = '';
+
+            currentDynamicItems = [];
+            const dynamicTableBody = document.getElementById('dynamicTableBody');
+            if (dynamicTableBody) dynamicTableBody.innerHTML = '';
+            const dynamicCountBadge = document.getElementById('dynamicCountBadge');
+            if (dynamicCountBadge) dynamicCountBadge.textContent = '0개 항목';
 
             resetToBulletinTheme();
             setStep(1);
@@ -2393,86 +2666,71 @@
                     fileSizeBadge.innerHTML = `<i class="fa-solid fa-hard-drive"></i> ${sizeStr}`;
                 }
 
-                // 이미지 업로드 즉시 Google Gemini API 사전 검증 수행
-                await verifyJuboAndProceed(file);
+                // 이미지 업로드 즉시 주보 검증 및 핵심 정보 추출 단일 파이프라인 호출
+                await processJuboPipeline(file);
             };
             reader.readAsDataURL(file);
         }
 
         // ===================================================
-        // Google Gemini API 주보 사전 판별 로직 (/api/verify-jubo)
-        // 주보 검증 활성화 플래그 (true: 활성화, false: 비활성화)
-        // 사용자가 채팅창에 "주보 검증 on" 입력 시 활성화(true)로 전환됩니다.
+        // Google Gemini API 주보 사전 판별 및 핵심정보 추출 (/api/process-jubo)
         // ===================================================
-        const IS_JUBO_VERIFY_ENABLED = false;
+        let currentDynamicItems = []; // [{ key: string, value: string }]
 
-        async function verifyJuboAndProceed(file) {
-            // [주보 검증 비활성화 모드]
-            // Gemini 사전 검증을 건너뛰고 기존 Naver CLOVA OCR 분석 파이프라인으로 바로 진입합니다.
-            if (!IS_JUBO_VERIFY_ENABLED) {
-                status.innerText = `[${file.name}] 이미지 등록 완료! Naver CLOVA OCR 분석을 시작합니다...`;
-                extractBtn.disabled = false;
-                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
-                await performOcr();
-                return;
-            }
-
-            // 판별 중 사용자 로딩 상태 표시
-            status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 주보 여부 확인 중... (AI 사전 검증)`;
+        async function processJuboPipeline(file) {
+            // 판별 및 추출 중 사용자 로딩 상태 표시
+            status.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 주보 판별 및 핵심정보 추출 중...`;
             extractBtn.disabled = true;
-            extractBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>주보 여부 확인 중...</span>`;
-            resultText.value = "Google Gemini AI 모델이 업로드된 이미지가 온전한 주보인지 확인하고 있습니다...";
+            extractBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>주보 판별 및 핵심정보 추출 중...</span>`;
+            resultText.value = "Google Gemini AI 모델이 주보 여부를 판별하고 핵심 정보를 동적으로 추출하고 있습니다...";
             copyBtn.style.display = 'none';
             parsedSection.style.display = 'none';
 
             const ocrSkeletonLoading = document.getElementById('ocrSkeletonLoading');
             const skeletonTitle = ocrSkeletonLoading ? ocrSkeletonLoading.querySelector('.skeleton-title') : null;
-            if (skeletonTitle) skeletonTitle.textContent = "Google Gemini AI 모델이 주보 여부를 확인하고 있습니다...";
+            if (skeletonTitle) skeletonTitle.textContent = "주보 판별 및 핵심정보 추출 중...";
             if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'block';
 
-            let verifyData = null;
+            let processData = null;
             try {
                 const formData = new FormData();
                 formData.append('file', file);
 
-                const response = await fetch('/api/verify-jubo', {
+                const response = await fetch('/api/process-jubo', {
                     method: 'POST',
                     body: formData
                 });
 
                 if (!response.ok) {
                     const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.reason || `[HTTP ${response.status}] ${response.statusText || '주보 검증 서버 오류'}`);
+                    throw new Error(errData.error || errData.reject_reason || `[HTTP ${response.status}] ${response.statusText || '주보 처리 서버 오류'}`);
                 }
 
-                verifyData = await response.json();
-            } catch (verifyError) {
+                processData = await response.json();
+            } catch (processError) {
                 if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
-                console.error('[Verify Jubo Error]:', verifyError);
+                console.error('[Process Jubo Error]:', processError);
                 extractBtn.disabled = false;
-                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
-                status.innerText = `⚠️ 주보 검증 확인 중 오류: ${verifyError.message}`;
+                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>분석 다시 시도</span>`;
+                status.innerText = `⚠️ 주보 처리 중 오류: ${processError.message}`;
 
-                showToast('주보 검증 통신 오류가 발생했습니다.', 'error');
+                showToast('주보 처리 통신 오류가 발생했습니다.', 'error');
                 showJuboAlertModal(
-                    '주보 검증 오류',
-                    `주보 검증 시스템 통신 중 오류가 발생했습니다.\n\n[오류 내용] ${verifyError.message}\n\n올바른 주보 이미지를 다시 업로드해주세요.`,
+                    '주보 처리 오류',
+                    `주보 분석 시스템 통신 중 오류가 발생했습니다.\n\n[오류 내용] ${processError.message}\n\n올바른 주보 이미지를 다시 업로드해주세요.`,
                     () => { executeResetToStep1(); }
                 );
                 return;
             }
 
-            // 검증 결과 처리
-            if (!verifyData.is_jubo) {
-                // is_jubo: false ➔ OCR 작업 중단, UI 알림창 표시 및 파일 업로드 초기화
+            // 1. 주보 판정 확인 (is_jubo: false ➔ 즉시 중단)
+            if (!processData || !processData.is_jubo) {
                 if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
                 extractBtn.disabled = true;
-                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>OCR 분석 시작 (데이터 추출)</span>`;
+                extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>분석 시작</span>`;
 
-                let alertMsg = '주보가 아닙니다. 주보 이미지를 업로드해주세요.';
-                if (verifyData.reason) {
-                    alertMsg += `\n\n[판단 근거]\n${verifyData.reason}`;
-                }
+                const reasonText = (processData && processData.reject_reason) ? processData.reject_reason : '교회 주보 문서의 필수 요건을 충족하지 못했습니다.';
+                const alertMsg = `주보가 아닙니다. 주보 이미지를 업로드해주세요.\n\n[판단 근거]\n${reasonText}`;
 
                 showToast('주보가 아닙니다. 주보 이미지를 업로드해주세요.', 'error');
                 showJuboAlertModal('주보 검증 안내', alertMsg, () => {
@@ -2481,12 +2739,209 @@
                 return;
             }
 
-            // is_jubo: true ➔ 정상적으로 기존 OCR 프로세스로 진입
-            showToast('유효한 주보가 확인되었습니다. OCR 분석을 시작합니다.', 'success');
-            status.innerText = '주보 확인 완료! Naver CLOVA OCR 분석을 시작합니다...';
-            if (skeletonTitle) skeletonTitle.textContent = "CLOVA OCR AI 모델이 주보를 정밀 분석하고 있습니다...";
+            // 2. 주보 판정 통과 (is_jubo: true ➔ 동적 핵심정보 렌더링 및 Step 2 이동)
+            if (ocrSkeletonLoading) ocrSkeletonLoading.style.display = 'none';
+            extractBtn.disabled = false;
+            extractBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>분석 완료</span>`;
+            status.innerText = '주보 확인 및 핵심정보 추출 완료!';
 
-            await performOcr();
+            currentDynamicItems = Array.isArray(processData.extracted_items) ? processData.extracted_items : [];
+
+            // 동적 테이블 렌더링
+            renderDynamicItems(currentDynamicItems);
+
+            // 기존 폼 필드(pptx_input_*) 및 찬송가/성경 모듈과의 자동 동기화
+            syncDynamicItemsToPptxForms(currentDynamicItems);
+
+            hasParsedData = true;
+            setStep(2);
+            showToast('주보 핵심정보가 성공적으로 추출되었습니다!', 'success');
+        }
+
+        // ===================================================
+        // 동적 핵심정보 UI 렌더링 및 인라인 수정 관리 함수
+        // ===================================================
+        function renderDynamicItems(items) {
+            const tbody = document.getElementById('dynamicTableBody');
+            const badge = document.getElementById('dynamicCountBadge');
+            if (badge) badge.textContent = `${items.length}개 항목`;
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+
+            if (items.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td colspan="3" style="text-align: center; color: var(--gray-400); padding: 24px;">
+                        추출된 항목이 없습니다. 아래의 [+ 새 항목 추가] 버튼을 눌러 직접 추가해주세요.
+                    </td>
+                `;
+                tbody.appendChild(tr);
+                return;
+            }
+
+            items.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <input type="text" class="cell-key-input" value="${escapeHtml(item.key || '')}" 
+                               placeholder="항목명" onchange="updateDynamicItemKey(${index}, this.value)">
+                    </td>
+                    <td>
+                        <input type="text" class="cell-value-input" value="${escapeHtml(item.value || '')}" 
+                               placeholder="내용 입력 (클릭하여 수정)" oninput="updateDynamicItemValue(${index}, this.value)">
+                    </td>
+                    <td style="text-align: center;">
+                        <button type="button" class="btn-delete-cell" onclick="deleteDynamicRow(${index})" title="이 항목 삭제">
+                            <i class="fa-solid fa-trash-can"></i> 삭제
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateDynamicItemKey(index, newKey) {
+            if (currentDynamicItems[index]) {
+                currentDynamicItems[index].key = newKey.trim();
+                syncDynamicItemsToPptxForms(currentDynamicItems);
+            }
+        }
+
+        function updateDynamicItemValue(index, newValue) {
+            if (currentDynamicItems[index]) {
+                currentDynamicItems[index].value = newValue;
+                syncDynamicItemsToPptxForms(currentDynamicItems);
+            }
+        }
+
+        function deleteDynamicRow(index) {
+            if (index >= 0 && index < currentDynamicItems.length) {
+                currentDynamicItems.splice(index, 1);
+                renderDynamicItems(currentDynamicItems);
+                syncDynamicItemsToPptxForms(currentDynamicItems);
+                showToast('항목이 삭제되었습니다.');
+            }
+        }
+
+        function addDynamicRow() {
+            currentDynamicItems.push({ key: '새 항목', value: '' });
+            renderDynamicItems(currentDynamicItems);
+            syncDynamicItemsToPptxForms(currentDynamicItems);
+            const inputs = document.querySelectorAll('#dynamicTableBody .cell-key-input');
+            if (inputs.length > 0) {
+                const last = inputs[inputs.length - 1];
+                last.focus();
+                last.select();
+            }
+        }
+
+        function copyDynamicItems() {
+            if (!currentDynamicItems || currentDynamicItems.length === 0) {
+                showToast('복사할 항목이 없습니다.', 'error');
+                return;
+            }
+            const textToCopy = currentDynamicItems
+                .filter(item => item.key || item.value)
+                .map(item => `${item.key}: ${item.value}`)
+                .join('\n');
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showToast(`주보 핵심정보 (${currentDynamicItems.length}개 항목)가 복사되었습니다!`, 'success');
+            }).catch(() => {
+                showToast('클립보드 복사에 실패했습니다.', 'error');
+            });
+        }
+
+        function confirmDynamicItems() {
+            if (currentDynamicItems.length === 0) {
+                showToast('확정할 항목이 없습니다. 항목을 추가하거나 확인해주세요.', 'error');
+                return;
+            }
+            syncDynamicItemsToPptxForms(currentDynamicItems);
+            showToast('데이터가 확정되었습니다! 자막 생성 허브로 이동합니다.', 'success');
+            setStep(3);
+        }
+
+        // 동적 항목 목록을 Step 3 PPTX 자막 생성 및 찬송가/성경 모듈과 매핑 동기화
+        function syncDynamicItemsToPptxForms(items) {
+            // ruleDefs 형식으로 변환하여 찬송가 및 성경 감지 유지
+            const ruleDefs = [
+                { id: 1, label: "설교자", value: "" },
+                { id: 2, label: "첫번째 찬송", value: "" },
+                { id: 3, label: "성시교독", value: "" },
+                { id: 4, label: "두번째 찬송", value: "" },
+                { id: 5, label: "대표기도자 [1부]", value: "" },
+                { id: 6, label: "대표기도자 [2부]", value: "" },
+                { id: 7, label: "성경봉독 담당자 [1부]", value: "" },
+                { id: 8, label: "성경봉독 담당자 [2부]", value: "" },
+                { id: 9, label: "성경봉독 본문", value: "" },
+                { id: 10, label: "찬양대(2부) 찬양 곡명", value: "" },
+                { id: 11, label: "설교 제목", value: "" },
+                { id: 12, label: "설교후 찬양 [1부]", value: "" },
+                { id: 13, label: "설교후 찬양 [2부]", value: "" }
+            ];
+
+            const itemMap = {};
+            items.forEach(it => {
+                const k = (it.key || '').trim();
+                const v = (it.value || '').trim();
+                if (k) itemMap[k] = v;
+            });
+
+            // 스마트 매핑 도우미
+            const findVal = (keywords) => {
+                for (const kw of keywords) {
+                    for (const [k, v] of Object.entries(itemMap)) {
+                        if (k.includes(kw)) return v;
+                    }
+                }
+                return "";
+            };
+
+            ruleDefs[0].value = findVal(['설교자', '말씀선포', '설교담당']);
+            ruleDefs[8].value = findVal(['성경본문', '본문말씀', '성경', '본문']);
+            ruleDefs[10].value = findVal(['설교제목', '설교 제목', '말씀제목', '설교']);
+
+            const prayer1 = findVal(['대표기도자 [1부]', '기도자 [1부]', '기도(1부)', '1부 기도', '1부대표기도']);
+            const prayer2 = findVal(['대표기도자 [2부]', '기도자 [2부]', '기도(2부)', '2부 기도', '2부대표기도', '대표기도', '기도자']);
+            ruleDefs[4].value = prayer1 || prayer2;
+            ruleDefs[5].value = prayer2 || prayer1;
+
+            const reader1 = findVal(['성경봉독 담당자 [1부]', '봉독자 [1부]', '봉독(1부)', '1부 성경봉독']);
+            const reader2 = findVal(['성경봉독 담당자 [2부]', '봉독자 [2부]', '봉독(2부)', '2부 성경봉독', '성경봉독자', '봉독자']);
+            ruleDefs[6].value = reader1 || reader2;
+            ruleDefs[7].value = reader2 || reader1;
+
+            ruleDefs[9].value = findVal(['찬양대', '두레찬양대', '특별찬양', '특송', '찬양곡']);
+
+            const hymn1 = findVal(['첫번째 찬송', '찬송 1', '첫번째찬송', '입례찬송']);
+            const hymn2 = findVal(['두번째 찬송', '찬송 2', '두번째찬송']);
+            const gyodok = findVal(['성시교독', '교독문']);
+            const sermonHymn = findVal(['설교후 찬양', '설교 후 찬양', '결단찬양', '파송찬송']);
+
+            if (hymn1) ruleDefs[1].value = hymn1;
+            if (gyodok) ruleDefs[2].value = gyodok;
+            if (hymn2) ruleDefs[3].value = hymn2;
+            if (sermonHymn) {
+                ruleDefs[11].value = sermonHymn;
+                ruleDefs[12].value = sermonHymn;
+            }
+
+            // 하위 호환을 위해 hidden input 및 last15Results 업데이트
+            last15Results = ruleDefs;
+            ruleDefs.forEach(r => {
+                const el = document.getElementById(`pptx_input_${r.id}`);
+                if (el) el.value = r.value;
+            });
+
+            // 찬송가 번호 자동 감지 및 성경 본문 인풋 연동
+            updateHymnsUI();
+            const biblePassageInput = document.getElementById('biblePassageInput');
+            if (biblePassageInput && ruleDefs[8].value) {
+                biblePassageInput.value = ruleDefs[8].value;
+                updateBiblePreviewUI();
+            }
+            updateStep3Summary();
         }
 
         // ===================================================
