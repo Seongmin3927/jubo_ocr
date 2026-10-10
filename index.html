@@ -5911,7 +5911,7 @@
         }
 
         // ===================================================
-        // Step 3 일괄 다운로드 함수 (주일자막, 찬송가, 교독문, 성경봉독 통합 ZIP)
+        // Step 3 일괄 다운로드 함수 (주일자막, 찬송가, 교독문, 성경봉독 개별 파일 순차 다운로드)
         // ===================================================
         async function executeBatchDownload() {
             const batchBtn = document.getElementById('batchDownloadBtn');
@@ -5991,31 +5991,23 @@
                     throw new Error('다운로드할 수 있는 자료가 없습니다. (오류: ' + (failures.join(', ') || '생성 실패') + ')');
                 }
 
-                // 5. ZIP 압축 파일 생성
-                if (batchBtn) {
-                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>📦 ${collectedFiles.length}개 파일 압축 중...</span>`;
+                // 5. 개별 파일 순차 다운로드 실행 (압축 파일 대신 각 파일 직접 저장)
+                for (let i = 0; i < collectedFiles.length; i++) {
+                    const fileItem = collectedFiles[i];
+                    if (batchBtn) {
+                        batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>파일 저장 중 (${i + 1}/${collectedFiles.length}): ${fileItem.label}...</span>`;
+                    }
+                    downloadBlobFile(fileItem.blob, fileItem.fileName);
+
+                    if (i < collectedFiles.length - 1) {
+                        await new Promise(r => setTimeout(r, 350));
+                    }
                 }
 
-                const batchZip = new JSZip();
-                collectedFiles.forEach(f => {
-                    batchZip.file(f.fileName, f.blob);
-                });
-
-                const zipBlob = await batchZip.generateAsync({
-                    type: 'blob',
-                    mimeType: 'application/zip'
-                });
-
-                const isTogether = currentSundayType === "다함께 주일";
-                const zipBase = isTogether ? '다함께주일예배자료' : '주일예배자료';
-                const zipFileName = `${datePrefix}_${zipBase}_일괄.zip`;
-
-                downloadBlobFile(zipBlob, zipFileName);
-
-                showToast(`🎉 [${zipFileName}] 일괄 다운로드 완료! (${collectedFiles.length}개 파일 포함)`, 'success');
+                showToast(`🎉 총 ${collectedFiles.length}개 예배자료 파일이 다운로드되었습니다!`, 'success');
 
                 if (failures.length > 0) {
-                    alert(`ℹ️ 일괄 다운로드 완료 (${collectedFiles.length}개 포함)\n\n[제외/실패된 일부 항목]\n${failures.join('\n')}`);
+                    alert(`⚠️ 일괄 다운로드 완료 (${collectedFiles.length}개 파일 저장됨)\n\n[제외/실패된 일부 항목]\n${failures.join('\n')}`);
                 }
 
             } catch (err) {
