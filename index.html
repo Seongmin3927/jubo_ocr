@@ -626,10 +626,10 @@
             border: none;
         }
 
-        /* Step 2: Sunday Type Banner */
+        /* Step 2: Sunday Type Banner (일반주일: 밝은 파란색 계열, 다함께주일: 노을빛 주황색 계열) */
         .sunday-type-banner {
-            background: #eff6ff;
-            border: 1.5px solid #bfdbfe;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1.5px solid #7dd3fc;
             border-radius: 14px;
             padding: 14px 20px;
             margin-bottom: 24px;
@@ -637,37 +637,69 @@
             align-items: center;
             justify-content: space-between;
             gap: 15px;
+            box-shadow: 0 4px 14px rgba(14, 165, 233, 0.08);
+            transition: all 0.3s ease;
         }
         .sunday-type-banner.together-sunday {
-            background: #fffbeb;
-            border-color: #fde68a;
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fef3c7 100%);
+            border-color: #fdba74;
+            box-shadow: 0 4px 16px rgba(249, 115, 22, 0.12);
         }
         .sunday-type-title {
             font-size: 1.05rem;
             font-weight: 700;
-            color: var(--gray-800);
+            color: #0369a1;
             display: flex;
             align-items: center;
             gap: 8px;
         }
+        .sunday-type-banner.together-sunday .sunday-type-title {
+            color: #c2410c;
+        }
         .sunday-badge {
             display: inline-block;
-            padding: 4px 14px;
+            padding: 5px 15px;
             border-radius: 20px;
             font-size: 0.9rem;
             font-weight: 700;
             color: white;
-            background: var(--theme-accent);
-            box-shadow: 0 0 12px var(--theme-accent-glow);
-            transition: all 0.5s ease;
+            background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+            box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);
+            transition: all 0.3s ease;
         }
         .sunday-type-banner.together-sunday .sunday-badge {
-            background: #d97706;
-            box-shadow: 0 2px 6px rgba(217, 119, 6, 0.3);
+            background: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%);
+            box-shadow: 0 2px 10px rgba(234, 88, 12, 0.4);
         }
         .sunday-type-desc {
-            font-size: 0.85rem;
-            color: var(--gray-600);
+            font-size: 0.88rem;
+            color: #0c4a6e;
+            font-weight: 500;
+        }
+        .sunday-type-banner.together-sunday .sunday-type-desc {
+            color: #9a3412;
+        }
+
+        /* Step 3 주일 구분 Pill */
+        .sunday-type-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+        .sunday-type-pill.normal {
+            background: #e0f2fe;
+            color: #0284c7;
+            border: 1px solid #7dd3fc;
+        }
+        .sunday-type-pill.together {
+            background: #ffedd5;
+            color: #ea580c;
+            border: 1px solid #fdba74;
         }
 
         .step-section-header {
@@ -2052,6 +2084,7 @@
                         
                         <div class="hub-card-meta">
                             <div class="hub-meta-item"><strong>예배일자:</strong> <span id="summaryWorshipDate" style="font-weight: 700; color: #2563eb;">-</span></div>
+                            <div class="hub-meta-item"><strong>예배구분:</strong> <span id="summarySundayType" class="sunday-type-pill normal"><i class="fa-solid fa-church"></i> 일반 주일</span></div>
                             <div class="hub-meta-item"><strong>설교자:</strong> <span id="summaryPreacher">-</span></div>
                             <div class="hub-meta-item"><strong>설교제목:</strong> <span id="summarySermonTitle">-</span></div>
                             <div class="hub-meta-item"><strong>찬송 배정:</strong> <span id="summaryHymns" style="font-weight: 700; color: #ea580c;">-</span></div>
@@ -2447,6 +2480,14 @@
             if (summaryWorshipDate) {
                 const datePrefix = (typeof getWorshipDatePrefix === 'function') ? getWorshipDatePrefix() : '';
                 summaryWorshipDate.textContent = detectedWorshipDate ? `${detectedWorshipDate} (${datePrefix})` : (datePrefix ? `${datePrefix} (기본)` : '-');
+            }
+            const summarySundayType = document.getElementById('summarySundayType');
+            if (summarySundayType) {
+                const isTogether = currentSundayType === "다함께 주일";
+                summarySundayType.className = isTogether ? "sunday-type-pill together" : "sunday-type-pill normal";
+                summarySundayType.innerHTML = isTogether
+                    ? `<i class="fa-solid fa-sun"></i> 다함께 주일`
+                    : `<i class="fa-solid fa-church"></i> 일반 주일`;
             }
             if (summaryPreacher) {
                 summaryPreacher.textContent = preacherVal || '(미입력)';
@@ -3078,12 +3119,12 @@
             if (typeof processData.is_together_sunday === 'boolean') {
                 if (processData.is_together_sunday) {
                     currentSundayType = "다함께 주일";
-                    if (sundayBadge) sundayBadge.innerText = "다함께 주일";
+                    if (sundayBadge) sundayBadge.innerHTML = `<i class="fa-solid fa-sun"></i> 다함께 주일`;
                     if (sundayTypeBanner) sundayTypeBanner.className = "sunday-type-banner together-sunday";
                     if (sundayDesc) sundayDesc.innerText = "💡 AI 분석: '다함께 주일' 감지 (1부 예배 없이 통합 예배 진행)";
                 } else {
                     currentSundayType = "일반 주일";
-                    if (sundayBadge) sundayBadge.innerText = "일반 주일";
+                    if (sundayBadge) sundayBadge.innerHTML = `<i class="fa-solid fa-church"></i> 일반 주일`;
                     if (sundayTypeBanner) sundayTypeBanner.className = "sunday-type-banner";
                     if (sundayDesc) sundayDesc.innerText = "💡 AI 분석: '일반 주일' 감지 (1부 및 2부 예배 진행)";
                 }
@@ -3789,11 +3830,11 @@
             currentSundayType = detection.sundayType;
 
             if (isTogetherSunday) {
-                sundayBadge.innerText = "다함께 주일";
+                sundayBadge.innerHTML = `<i class="fa-solid fa-sun"></i> 다함께 주일`;
                 sundayTypeBanner.className = "sunday-type-banner together-sunday";
                 sundayDesc.innerText = "💡 상단 헤더 영역에서 '다함께 주일' 감지 (1부 예배 없이 2부 예배만 진행 / 2D 좌표 정밀 파싱)";
             } else {
-                sundayBadge.innerText = "일반 주일";
+                sundayBadge.innerHTML = `<i class="fa-solid fa-church"></i> 일반 주일`;
                 sundayTypeBanner.className = "sunday-type-banner";
                 sundayDesc.innerText = "💡 일반 주일로 판별되었습니다. (1부 및 2부 예배 진행)";
             }
