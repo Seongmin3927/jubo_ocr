@@ -8,6 +8,14 @@
  * Output schema: { is_jubo: boolean, reason: string }
  */
 
+// =========================================================================
+// [주보 검증 시스템 ON/OFF 스위치]
+// - true: 주보 사전 검증 활성화
+// - false: 주보 사전 검증 비활성화 (OFF: 검증 생략 및 항상 { is_jubo: true } 응답)
+// ※ 채팅창에 "주보 검증 on" 요청 시 true로 변경 가능
+// =========================================================================
+export const IS_JUBO_VERIFICATION_ENABLED = false;
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -16,6 +24,17 @@ export async function onRequestPost(context) {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
+
+  // 주보 검증 시스템이 비활성화(OFF)된 경우 검증을 즉시 통과 처리
+  if (!IS_JUBO_VERIFICATION_ENABLED) {
+    return new Response(
+      JSON.stringify({
+        is_jubo: true,
+        reason: '주보 검증 시스템이 비활성화(OFF)되어 모든 문서를 통과 처리합니다.',
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+    );
+  }
 
   try {
     const apiKey = env.GEMINI_API_KEY;

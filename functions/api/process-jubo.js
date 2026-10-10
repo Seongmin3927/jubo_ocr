@@ -16,6 +16,14 @@
  * }
  */
 
+// =========================================================================
+// [주보 검증 시스템 ON/OFF 스위치]
+// - true: 주보 사전 판별(게이트키퍼) 활성화 (주보가 아니면 거부 및 즉시 중단)
+// - false: 주보 사전 판별 비활성화 (OFF: 주보 판별 여부와 관계없이 무조건 통과 및 핵심정보 추출)
+// ※ 채팅창에 "주보 검증 on" 요청 시 true로 변경하여 즉시 재활성화 가능
+// =========================================================================
+export const IS_JUBO_VERIFICATION_ENABLED = false;
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -140,9 +148,7 @@ function arrayBufferToBase64(buffer) {
  * Google Gemini API (gemini-3.8-flash) 호출 및 Structured Output 반환
  */
 async function callGeminiProcess(base64Data, mimeType, apiKey, env, corsHeaders) {
-  const systemPrompt = `당신은 교회 주보 검증 및 주일 예배 핵심정보 추출 시스템입니다.
-
-1. 주보 판정 기준:
+  const gatekeeperInstruction = IS_JUBO_VERIFICATION_ENABLED ? `1. 주보 판정 기준:
 
 ■ is_jubo: true (실제 배포 및 즉시 사용 가능한 상태):
 - 종합 주보 (예배순서 + 교회소식 완비)
@@ -153,8 +159,22 @@ async function callGeminiProcess(base64Data, mimeType, apiKey, env, corsHeaders)
 ■ is_jubo: false (즉시 중단):
 - 무지 배경 속지, 디자인 빈칸 템플릿, 도서 표지, 일반 기관 홍보 팜플렛, 단순 성구 카드
 
-2. 핵심정보 추출 규칙 (is_jubo가 true인 경우에만 추출):
-- 고정 템플릿을 강제하지 말고, 업로드된 주보에 실제 명시된 항목만 동적으로 선별하여 key-value 목록으로 도출할 것.
+※ is_jubo가 false인 경우:
+reject_reason에 판단 근거(예: "빈칸 디자인 템플릿입니다", "도서 표지입니다" 등)를 구체적으로 작성하고, extracted_items는 빈 배열([])로 반환하십시오.
+※ is_jubo가 true인 경우:
+reject_reason은 빈 문자열("")로 반환하고, extracted_items에 추출된 모든 핵심 정보 항목을 담으십시오.`
+  : `1. 주보 판정 기준 (현재 주보 검증 시스템 OFF 모드):
+- 현재 주보 검증(게이트키퍼) 시스템이 비활성화(OFF)되어 있습니다.
+- 제공된 이미지의 주보 여부를 엄격히 판정하지 말고, is_jubo는 항상 true로 응답하십시오.
+- reject_reason은 빈 문자열("")로 응답하십시오.
+- 이미지에 기재된 모든 주일 예배 관련 핵심 정보(설교자, 설교제목, 성경본문, 대표기도자, 찬송가 등)를 최대한 추출하여 extracted_items에 담으십시오.`;
+
+  const systemPrompt = `당신은 교회 주보 검증 및 주일 예배 핵심정보 추출 시스템입니다.
+
+${gatekeeperInstruction}
+
+2. 핵심정보 추출 규칙${IS_JUBO_VERIFICATION_ENABLED ? ' (is_jubo가 true인 경우에만 추출)' : ''}:
+- 고정 템플릿을 강제하지 말고, 업로드된 문서에 실제 명시된 항목만 동적으로 선별하여 key-value 목록으로 도출할 것.
 - [추출 제외 대상 (절대 추출 금지)]:
   * 교회명 (예: "두레교회", "교회명")
   * 예배 일자 및 시간 (예: "2026. 10. 11", "오전 11시", "발행일")
@@ -173,12 +193,7 @@ async function callGeminiProcess(base64Data, mimeType, apiKey, env, corsHeaders)
   * 성시교독 / 교독문 번호 (예: "교독문 24번")
   * 찬양대(특송) 찬양곡명
 - 인명 표기 원칙: 괄호 설명이나 인도자 병기 없이 해당 직무의 이름(및 직분)만 간결하게 표기 (예: "채충원 목사", "박동식 장로").
-- '해당 없음' 배제: 주보에 없는 항목(예: 성시교독 없음, 1/2부 구분 없음)은 목록에 아예 포함하지 말 것.
-
-※ is_jubo가 false인 경우:
-reject_reason에 판단 근거(예: "빈칸 디자인 템플릿입니다", "도서 표지입니다" 등)를 구체적으로 작성하고, extracted_items는 빈 배열([])로 반환하십시오.
-※ is_jubo가 true인 경우:
-reject_reason은 빈 문자열("")로 반환하고, extracted_items에 추출된 모든 핵심 정보 항목을 담으십시오.`;
+- '해당 없음' 배제: 문서에 없는 항목(예: 성시교독 없음, 1/2부 구분 없음)은 목록에 아예 포함하지 말 것.`;
 
   const geminiPayload = {
     system_instruction: {
@@ -310,8 +325,8 @@ reject_reason은 빈 문자열("")로 반환하고, extracted_items에 추출된
   }
 
   const finalResult = {
-    is_jubo: Boolean(parsed.is_jubo),
-    reject_reason: parsed.reject_reason || '',
+    is_jubo: IS_JUBO_VERIFICATION_ENABLED ? Boolean(parsed.is_jubo) : true,
+    reject_reason: IS_JUBO_VERIFICATION_ENABLED ? (parsed.reject_reason || '') : '',
     extracted_items: Array.isArray(parsed.extracted_items) ? parsed.extracted_items : []
   };
 
