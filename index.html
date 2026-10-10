@@ -1489,6 +1489,34 @@
             border-color: #ef4444;
         }
 
+        .btn-batch-download {
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 13px 26px;
+            border-radius: 12px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-batch-download:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 50%, #1e3a8a 100%);
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.45);
+        }
+        .btn-batch-download:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            opacity: 0.85;
+        }
+
         /* Modal Dialog */
         .modal-overlay {
             position: fixed;
@@ -2155,8 +2183,8 @@
                 <button type="button" class="btn-nav-back" onclick="setStep(2)">
                     <i class="fa-solid fa-arrow-left"></i> 데이터 수정하러 가기
                 </button>
-                <button type="button" class="btn-reset-work" onclick="confirmResetToStep1()">
-                    <i class="fa-solid fa-rotate-left"></i> 처음으로 돌아가기 (새 주보 작업)
+                <button type="button" class="btn-batch-download" id="batchDownloadBtn" onclick="executeBatchDownload()">
+                    <i class="fa-solid fa-cloud-arrow-down" style="font-size: 1.15rem;"></i> <span>일괄 다운로드</span>
                 </button>
             </div>
         </div>
@@ -5150,132 +5178,146 @@
         }
 
         // =========================================================================
-        // 성경봉독 자막 PPTX 생성 및 다운로드 클릭 핸들러
+        // 공통 파일 다운로드 헬퍼
+        // =========================================================================
+        function downloadBlobFile(blob, fileName) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // =========================================================================
+        // 성경봉독 자막 PPTX Blob 생성 함수
+        // =========================================================================
+        async function generateBiblePptxBlob() {
+            const passageStr = biblePassageInput ? biblePassageInput.value.trim() : '';
+            const refs = parseBibleRefInput(passageStr);
+
+            if (refs.length === 0) {
+                return null;
+            }
+
+            // 1. 갓피아(godpia.com) 실시간 스크래핑을 통한 구절 본문 확보
+            const resolvedVerses = [];
+            for (const r of refs) {
+                const verseData = await getBibleVerseText(r.bookObj, r.bookShort, r.chapter, r.verse);
+                resolvedVerses.push({
+                    ...r,
+                    content: verseData.content,
+                    source: verseData.source
+                });
+            }
+
+            const datePrefix = getWorshipDatePrefix();
+            const outputFileName = `${datePrefix}_성경봉독.pptx`;
+
+            // 2. 템플릿 ArrayBuffer 확보 (사용자 커스텀 업로드 파일 OR 기본 templates/성경봉독자막양식.pptx)
+            let templateBuffer = null;
+            if (bibleTemplateFileInput && bibleTemplateFileInput.files && bibleTemplateFileInput.files[0]) {
+                templateBuffer = await bibleTemplateFileInput.files[0].arrayBuffer();
+            } else {
+                const templateCandidates = [
+                    `/templates/성경봉독자막양식.pptx`,
+                    `./templates/성경봉독자막양식.pptx`,
+                    `templates/성경봉독자막양식.pptx`
+                ];
+                for (let tPath of templateCandidates) {
+                    try {
+                        const res = await fetch(tPath);
+                        if (res.ok) {
+                            templateBuffer = await res.arrayBuffer();
+                            break;
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            if (!templateBuffer) {
+                throw new Error("기본 성경자막 템플릿(templates/성경봉독자막양식.pptx)을 불러오지 못했습니다. [템플릿 설정]에서 .pptx 파일을 직접 선택해주세요.");
+            }
+
+            // 3. JSZip 압축 해제 및 OOXML 서식 보존 치환
+            const zip = await JSZip.loadAsync(templateBuffer);
+
+            let presentationXml = await zip.file("ppt/presentation.xml").async("string");
+            let presentationRelsXml = await zip.file("ppt/_rels/presentation.xml.rels").async("string");
+            let contentTypesXml = await zip.file("[Content_Types].xml").async("string");
+
+            const baseSlideXml = await zip.file("ppt/slides/slide1.xml").async("string");
+            let baseSlideRelsXml = "";
+            if (zip.file("ppt/slides/_rels/slide1.xml.rels")) {
+                baseSlideRelsXml = await zip.file("ppt/slides/_rels/slide1.xml.rels").async("string");
+            }
+
+            let sldIdLstContent = "";
+            let relsContent = "";
+            let contentTypesOverrides = "";
+
+            resolvedVerses.forEach((item, index) => {
+                const slideNumber = index + 1;
+                const chapterSuffix = item.bookShort === "시" ? "편" : "장";
+
+                const customizedSlideXml = replaceSlidePlaceholdersPreservingStyle(baseSlideXml, item, chapterSuffix);
+
+                zip.file(`ppt/slides/slide${slideNumber}.xml`, customizedSlideXml);
+
+                if (slideNumber > 1) {
+                    const rId = `rIdBibleSlide${slideNumber}`;
+                    const sldId = 1812 + index;
+
+                    if (baseSlideRelsXml) {
+                        zip.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`, baseSlideRelsXml);
+                    }
+
+                    sldIdLstContent += `<p:sldId id="${sldId}" r:id="${rId}"/>`;
+                    relsContent += `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${slideNumber}.xml"/>`;
+                    contentTypesOverrides += `<Override PartName="/ppt/slides/slide${slideNumber}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`;
+                }
+            });
+
+            if (sldIdLstContent) {
+                presentationXml = presentationXml.replace(/<\/p:sldIdLst>/, `${sldIdLstContent}</p:sldIdLst>`);
+            }
+            if (relsContent) {
+                presentationRelsXml = presentationRelsXml.replace(/<\/Relationships>/, `${relsContent}</Relationships>`);
+            }
+            if (contentTypesOverrides) {
+                contentTypesXml = contentTypesXml.replace(/<\/Types>/, `${contentTypesOverrides}</Types>`);
+            }
+
+            zip.file("ppt/presentation.xml", presentationXml);
+            zip.file("ppt/_rels/presentation.xml.rels", presentationRelsXml);
+            zip.file("[Content_Types].xml", contentTypesXml);
+
+            // 4. 새 PPTX 바이너리 Blob 생성
+            const blob = await zip.generateAsync({
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            });
+
+            return { blob, fileName: outputFileName };
+        }
+
+        // =========================================================================
+        // 성경봉독 자막 PPTX 생성 및 개별 다운로드 클릭 핸들러
         // =========================================================================
         downloadBiblePptxBtn.addEventListener('click', async function() {
             try {
                 downloadBiblePptxBtn.disabled = true;
                 downloadBiblePptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 갓피아 본문 수집 및 PPTX 생성 중...';
 
-                const passageStr = biblePassageInput ? biblePassageInput.value.trim() : '';
-                const refs = parseBibleRefInput(passageStr);
-
-                if (refs.length === 0) {
+                const result = await generateBiblePptxBlob();
+                if (!result) {
                     throw new Error("올바른 성경 구절을 입력하거나 지정해주세요. (예: 요한복음 16:5-7, 사도행전 1:6)");
                 }
 
-                // 1. 갓피아(godpia.com) 실시간 스크래핑을 통한 구절 본문 확보
-                const resolvedVerses = [];
-                for (const r of refs) {
-                    const verseData = await getBibleVerseText(r.bookObj, r.bookShort, r.chapter, r.verse);
-                    resolvedVerses.push({
-                        ...r,
-                        content: verseData.content,
-                        source: verseData.source
-                    });
-                }
-
-                const datePrefix = getWorshipDatePrefix();
-                const outputFileName = `${datePrefix}_성경봉독.pptx`;
-
-                // 2. 템플릿 ArrayBuffer 확보 (사용자 커스텀 업로드 파일 OR 기본 templates/성경봉독자막양식.pptx)
-                let templateBuffer = null;
-                if (bibleTemplateFileInput && bibleTemplateFileInput.files && bibleTemplateFileInput.files[0]) {
-                    templateBuffer = await bibleTemplateFileInput.files[0].arrayBuffer();
-                } else {
-                    const templateCandidates = [
-                        `/templates/성경봉독자막양식.pptx`,
-                        `./templates/성경봉독자막양식.pptx`,
-                        `templates/성경봉독자막양식.pptx`
-                    ];
-                    for (let tPath of templateCandidates) {
-                        try {
-                            const res = await fetch(tPath);
-                            if (res.ok) {
-                                templateBuffer = await res.arrayBuffer();
-                                break;
-                            }
-                        } catch (e) {}
-                    }
-                }
-
-                if (!templateBuffer) {
-                    throw new Error("기본 성경자막 템플릿(templates/성경봉독자막양식.pptx)을 불러오지 못했습니다. [템플릿 설정]에서 .pptx 파일을 직접 선택해주세요.");
-                }
-
-                // 3. JSZip 압축 해제 및 OOXML 서식 보존 치환
-                const zip = await JSZip.loadAsync(templateBuffer);
-
-                let presentationXml = await zip.file("ppt/presentation.xml").async("string");
-                let presentationRelsXml = await zip.file("ppt/_rels/presentation.xml.rels").async("string");
-                let contentTypesXml = await zip.file("[Content_Types].xml").async("string");
-
-                const baseSlideXml = await zip.file("ppt/slides/slide1.xml").async("string");
-                let baseSlideRelsXml = "";
-                if (zip.file("ppt/slides/_rels/slide1.xml.rels")) {
-                    baseSlideRelsXml = await zip.file("ppt/slides/_rels/slide1.xml.rels").async("string");
-                }
-
-                let sldIdLstContent = "";
-                let relsContent = "";
-                let contentTypesOverrides = "";
-
-                // 구절별 슬라이드 생성:
-                // - 첫 번째 구절(index 0)은 slide1.xml에 서식 그대로 치환
-                // - 두 번째 구절부터는 slide2.xml, slide3.xml로 복제 확장하여 연결
-                resolvedVerses.forEach((item, index) => {
-                    const slideNumber = index + 1;
-                    const chapterSuffix = item.bookShort === "시" ? "편" : "장";
-
-                    // 서식 보존 치환 실행 (XML 텍스트 노드만 수정)
-                    const customizedSlideXml = replaceSlidePlaceholdersPreservingStyle(baseSlideXml, item, chapterSuffix);
-
-                    zip.file(`ppt/slides/slide${slideNumber}.xml`, customizedSlideXml);
-
-                    if (slideNumber > 1) {
-                        const rId = `rIdBibleSlide${slideNumber}`;
-                        const sldId = 1812 + index; // OOXML Slide ID (충돌 방지 고유값)
-
-                        if (baseSlideRelsXml) {
-                            zip.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`, baseSlideRelsXml);
-                        }
-
-                        sldIdLstContent += `<p:sldId id="${sldId}" r:id="${rId}"/>`;
-                        relsContent += `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${slideNumber}.xml"/>`;
-                        contentTypesOverrides += `<Override PartName="/ppt/slides/slide${slideNumber}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`;
-                    }
-                });
-
-                if (sldIdLstContent) {
-                    presentationXml = presentationXml.replace(/<\/p:sldIdLst>/, `${sldIdLstContent}</p:sldIdLst>`);
-                }
-                if (relsContent) {
-                    presentationRelsXml = presentationRelsXml.replace(/<\/Relationships>/, `${relsContent}</Relationships>`);
-                }
-                if (contentTypesOverrides) {
-                    contentTypesXml = contentTypesXml.replace(/<\/Types>/, `${contentTypesOverrides}</Types>`);
-                }
-
-                zip.file("ppt/presentation.xml", presentationXml);
-                zip.file("ppt/_rels/presentation.xml.rels", presentationRelsXml);
-                zip.file("[Content_Types].xml", contentTypesXml);
-
-                // 4. 새 PPTX 바이너리 Blob 생성 및 다운로드
-                const blob = await zip.generateAsync({
-                    type: 'blob',
-                    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-                });
-
-                const downloadUrl = URL.createObjectURL(blob);
-                const downloadLink = document.createElement('a');
-                downloadLink.href = downloadUrl;
-                downloadLink.download = outputFileName;
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
-                URL.revokeObjectURL(downloadUrl);
-
-                showToast(`🎉 ${outputFileName} 성경자막 다운로드 완료! (갓피아 스크래핑 반영)`);
+                downloadBlobFile(result.blob, result.fileName);
+                showToast(`🎉 ${result.fileName} 성경자막 다운로드 완료! (갓피아 스크래핑 반영)`);
 
             } catch (err) {
                 console.error('[Bible PPTX Error]:', err);
@@ -5290,14 +5332,10 @@
         const render15RulesUI = renderRulesUI;
 
         // ===================================================
-        // PPTX 생성 및 서식 보존 치환 다운로드 핸들러
+        // 주일예배자막 PPTX Blob 생성 함수
         // ===================================================
-        downloadPptxBtn.addEventListener('click', async function() {
-            try {
-                downloadPptxBtn.disabled = true;
-                downloadPptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 자막 PPTX 생성 중...';
-
-                const isTogether = currentSundayType === "다함께 주일";
+        async function generateSundayPptxBlob() {
+            const isTogether = currentSundayType === "다함께 주일";
                 const itemCount = 13;
 
                 // 1. 입력값 맵 구축
@@ -5554,20 +5592,25 @@
                     mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
                 });
 
-                const datePrefix = getWorshipDatePrefix();
-                const typeLabel = isTogether ? '다함께주일예배자막' : '주일예배자막';
-                const fileName = `${datePrefix}_${typeLabel}.pptx`;
+            const datePrefix = getWorshipDatePrefix();
+            const typeLabel = isTogether ? '다함께주일예배자막' : '주일예배자막';
+            const fileName = `${datePrefix}_${typeLabel}.pptx`;
 
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+            return { blob, fileName };
+        }
 
-                showToast(`${fileName} 다운로드가 완료되었습니다!`);
+        // ===================================================
+        // PPTX 생성 및 서식 보존 치환 개별 다운로드 핸들러
+        // ===================================================
+        downloadPptxBtn.addEventListener('click', async function() {
+            try {
+                downloadPptxBtn.disabled = true;
+                downloadPptxBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 자막 PPTX 생성 중...';
+
+                const result = await generateSundayPptxBlob();
+                downloadBlobFile(result.blob, result.fileName);
+
+                showToast(`${result.fileName} 다운로드가 완료되었습니다!`);
 
             } catch (err) {
                 console.error('[PPTX Generation Error]:', err);
@@ -5577,6 +5620,29 @@
                 downloadPptxBtn.innerHTML = '<i class="fa-solid fa-file-arrow-down" style="font-size: 1.3rem;"></i> <span>자막 PPTX 생성 및 다운로드</span>';
             }
         });
+
+        // ===================================================
+        // 시놀로지 NAS 찬송가 PPT 파일들 Blob 수신 함수
+        // ===================================================
+        async function fetchHymnBlobs() {
+            if (!detectedHymnNumbers || !detectedHymnNumbers.length) return [];
+            const results = [];
+            for (let i = 0; i < detectedHymnNumbers.length; i++) {
+                const hymnNo = detectedHymnNumbers[i];
+                try {
+                    const proxyUrl = `/api/synology/download-hymn?hymnNo=${encodeURIComponent(hymnNo)}`;
+                    const res = await fetch(proxyUrl);
+                    if (res.ok) {
+                        const blob = await res.blob();
+                        const fileName = `새찬송가${hymnNo}장_normal_White.ppt`;
+                        results.push({ blob, fileName, hymnNo });
+                    }
+                } catch (e) {
+                    console.warn(`[fetchHymnBlobs] 찬송가 ${hymnNo}장 수신 실패:`, e);
+                }
+            }
+            return results;
+        }
 
         // ===================================================
         // 시놀로지 NAS 찬송가 PPT 개별 다운로드 핸들러
@@ -5737,6 +5803,70 @@
             alert('유효한 교독문 번호(1~137)를 찾을 수 없습니다. 내용을 확인해주세요.');
         };
 
+        // 분할 ZIP에서 단일 교독문 PPTX Blob 수신 함수
+        async function fetchGyodokBlob(gyodokNo) {
+            const n = parseInt(gyodokNo, 10);
+            if (isNaN(n) || n < 1 || n > 137) {
+                throw new Error(`유효한 교독문 번호(1~137)가 아닙니다: ${gyodokNo}`);
+            }
+
+            const zipFileName = getGyodokZipFileName(n);
+            if (!zipFileName) {
+                throw new Error(`교독문 ${n}번에 해당하는 분할 ZIP 파일을 찾을 수 없습니다.`);
+            }
+
+            // 1. Cloudflare Pages Function 프록시 API 호출하여 ZIP ArrayBuffer 수신
+            const proxyUrl = `/api/download-gyodok?no=${encodeURIComponent(n)}`;
+            const response = await fetch(proxyUrl);
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `[HTTP ${response.status}] ${response.statusText || '교독문 ZIP 다운로드 실패'}`);
+            }
+
+            const zipBuffer = await response.arrayBuffer();
+
+            // 2. JSZip으로 ZIP 파일 압축 해제 및 해당 번호 PPTX 탐색
+            if (typeof JSZip === 'undefined') {
+                throw new Error('JSZip 라이브러리가 로드되지 않았습니다.');
+            }
+
+            const zip = await JSZip.loadAsync(zipBuffer);
+            const fileNames = Object.keys(zip.files);
+
+            const numStr = String(n);
+            const numStr3 = numStr.padStart(3, '0');
+            const numStr2 = numStr.padStart(2, '0');
+
+            let matchedFileName = fileNames.find(f => {
+                if (f.startsWith('__MACOSX/') || f.endsWith('/')) return false;
+                const lower = f.toLowerCase();
+                if (!lower.endsWith('.pptx') && !lower.endsWith('.ppt')) return false;
+
+                const regex = new RegExp(`(^|[^0-9])(${numStr}|${numStr2}|${numStr3})([^0-9]|$)`);
+                return regex.test(f);
+            });
+
+            if (!matchedFileName) {
+                matchedFileName = fileNames.find(f => {
+                    if (f.startsWith('__MACOSX/') || f.endsWith('/')) return false;
+                    const lower = f.toLowerCase();
+                    return (lower.endsWith('.pptx') || lower.endsWith('.ppt')) && f.includes(numStr);
+                });
+            }
+
+            if (!matchedFileName) {
+                throw new Error(`ZIP 파일(${zipFileName}) 내에서 교독문 ${n}번에 해당하는 PPTX 파일을 찾을 수 없습니다.`);
+            }
+
+            // 3. 매칭된 단일 PPTX 파일의 바이너리 Blob 생성
+            const ext = matchedFileName.toLowerCase().endsWith('.ppt') ? 'ppt' : 'pptx';
+            const pptxBlob = await zip.file(matchedFileName).async('blob');
+            const fileName = `교독문_${n}번.${ext}`;
+
+            return { blob: pptxBlob, fileName };
+        }
+
         // 분할 ZIP 다운로드 및 메모리 상 단일 PPTX 파일 실시간 추출 다운로드 함수
         async function downloadSingleGyodokPptx(gyodokNo) {
             const downloadBtn = document.getElementById('downloadGyodokBtn');
@@ -5748,80 +5878,13 @@
                     downloadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ZIP 다운로드 및 압축 해제 중...</span>`;
                 }
 
-                const n = parseInt(gyodokNo, 10);
-                if (isNaN(n) || n < 1 || n > 137) {
-                    throw new Error(`유효한 교독문 번호(1~137)가 아닙니다: ${gyodokNo}`);
+                const result = await fetchGyodokBlob(gyodokNo);
+                if (!result || !result.blob) {
+                    throw new Error("교독문 파일을 추출하지 못했습니다.");
                 }
 
-                const zipFileName = getGyodokZipFileName(n);
-                if (!zipFileName) {
-                    throw new Error(`교독문 ${n}번에 해당하는 분할 ZIP 파일을 찾을 수 없습니다.`);
-                }
-
-                // 1. Cloudflare Pages Function 프록시 API 호출하여 ZIP ArrayBuffer 수신
-                const proxyUrl = `/api/download-gyodok?no=${encodeURIComponent(n)}`;
-                const response = await fetch(proxyUrl);
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.error || `[HTTP ${response.status}] ${response.statusText || '교독문 ZIP 다운로드 실패'}`);
-                }
-
-                const zipBuffer = await response.arrayBuffer();
-
-                // 2. JSZip으로 ZIP 파일 압축 해제 및 해당 번호 PPTX 탐색
-                if (typeof JSZip === 'undefined') {
-                    throw new Error('JSZip 라이브러리가 로드되지 않았습니다.');
-                }
-
-                const zip = await JSZip.loadAsync(zipBuffer);
-                const fileNames = Object.keys(zip.files);
-
-                // 검색 우선순위:
-                // 1) 파일명에 교독문 번호(n)와 pptx/ppt가 포함된 파일
-                // 2) 3자리 패딩 번호 (예: 024)
-                const numStr = String(n);
-                const numStr3 = numStr.padStart(3, '0');
-                const numStr2 = numStr.padStart(2, '0');
-
-                let matchedFileName = fileNames.find(f => {
-                    if (f.startsWith('__MACOSX/') || f.endsWith('/')) return false;
-                    const lower = f.toLowerCase();
-                    if (!lower.endsWith('.pptx') && !lower.endsWith('.ppt')) return false;
-
-                    // 번호 단어 경계 또는 포함 매칭
-                    const regex = new RegExp(`(^|[^0-9])(${numStr}|${numStr2}|${numStr3})([^0-9]|$)`);
-                    return regex.test(f);
-                });
-
-                // Fallback: 파일명에 숫자 자체가 포함된 PPT/PPTX 파일 탐색
-                if (!matchedFileName) {
-                    matchedFileName = fileNames.find(f => {
-                        if (f.startsWith('__MACOSX/') || f.endsWith('/')) return false;
-                        const lower = f.toLowerCase();
-                        return (lower.endsWith('.pptx') || lower.endsWith('.ppt')) && f.includes(numStr);
-                    });
-                }
-
-                if (!matchedFileName) {
-                    throw new Error(`ZIP 파일(${zipFileName}) 내에서 교독문 ${n}번에 해당하는 PPTX 파일을 찾을 수 없습니다.\n\n[ZIP 내부 파일 목록 일부]:\n${fileNames.filter(f => !f.startsWith('__MACOSX/')).slice(0, 8).join('\n')}`);
-                }
-
-                // 3. 매칭된 단일 PPTX 파일의 바이너리 Blob 생성 및 다운로드 트리거
-                const ext = matchedFileName.toLowerCase().endsWith('.ppt') ? 'ppt' : 'pptx';
-                const pptxBlob = await zip.file(matchedFileName).async('blob');
-
-                const downloadFileName = `교독문_${n}번.${ext}`;
-                const blobUrl = URL.createObjectURL(pptxBlob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = downloadFileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(blobUrl);
-
-                showToast(`교독문 ${n}번 PPTX 파일 다운로드가 완료되었습니다!`, 'success');
+                downloadBlobFile(result.blob, result.fileName);
+                showToast(`교독문 ${gyodokNo}번 PPTX 파일 다운로드가 완료되었습니다!`, 'success');
 
             } catch (err) {
                 console.error('[Gyodok Download Error]:', err);
@@ -5845,6 +5908,126 @@
                 }
                 await downloadSingleGyodokPptx(detectedGyodokNo);
             });
+        }
+
+        // ===================================================
+        // Step 3 일괄 다운로드 함수 (주일자막, 찬송가, 교독문, 성경봉독 통합 ZIP)
+        // ===================================================
+        async function executeBatchDownload() {
+            const batchBtn = document.getElementById('batchDownloadBtn');
+            const originalHtml = batchBtn ? batchBtn.innerHTML : '';
+
+            try {
+                if (batchBtn) {
+                    batchBtn.disabled = true;
+                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>1/4 주일예배자막 생성 중...</span>`;
+                }
+
+                const datePrefix = getWorshipDatePrefix();
+                const collectedFiles = []; // [{ blob, fileName, label }]
+                const failures = [];
+
+                // 1. 주일예배자막 PPTX
+                try {
+                    const sundayRes = await generateSundayPptxBlob();
+                    if (sundayRes && sundayRes.blob) {
+                        collectedFiles.push({ ...sundayRes, label: '주일예배자막' });
+                    }
+                } catch (e) {
+                    console.error('[일괄 다운로드] 주일예배자막 생성 실패:', e);
+                    failures.push(`주일예배자막: ${e.message}`);
+                }
+
+                // 2. 찬송가 PPT 파일들
+                if (batchBtn) {
+                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>2/4 찬송가 PPT 수신 중...</span>`;
+                }
+                if (detectedHymnNumbers && detectedHymnNumbers.length > 0) {
+                    try {
+                        const hymnFiles = await fetchHymnBlobs();
+                        hymnFiles.forEach(hf => {
+                            collectedFiles.push({ ...hf, label: `찬송가 ${hf.hymnNo}장` });
+                        });
+                        if (hymnFiles.length === 0) {
+                            failures.push('찬송가: 파일 다운로드 실패');
+                        }
+                    } catch (e) {
+                        console.error('[일괄 다운로드] 찬송가 수신 실패:', e);
+                        failures.push(`찬송가: ${e.message}`);
+                    }
+                }
+
+                // 3. 교독문 PPTX
+                if (batchBtn) {
+                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>3/4 교독문 PPT 수신 중...</span>`;
+                }
+                if (detectedGyodokNo) {
+                    try {
+                        const gyodokRes = await fetchGyodokBlob(detectedGyodokNo);
+                        if (gyodokRes && gyodokRes.blob) {
+                            collectedFiles.push({ ...gyodokRes, label: `교독문 ${detectedGyodokNo}번` });
+                        }
+                    } catch (e) {
+                        console.error('[일괄 다운로드] 교독문 수신 실패:', e);
+                        failures.push(`교독문: ${e.message}`);
+                    }
+                }
+
+                // 4. 성경봉독 PPTX
+                if (batchBtn) {
+                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>4/4 성경봉독 자막 생성 중...</span>`;
+                }
+                try {
+                    const bibleRes = await generateBiblePptxBlob();
+                    if (bibleRes && bibleRes.blob) {
+                        collectedFiles.push({ ...bibleRes, label: '성경봉독자막' });
+                    }
+                } catch (e) {
+                    console.error('[일괄 다운로드] 성경봉독 자막 생성 실패:', e);
+                    failures.push(`성경봉독: ${e.message}`);
+                }
+
+                if (collectedFiles.length === 0) {
+                    throw new Error('다운로드할 수 있는 자료가 없습니다. (오류: ' + (failures.join(', ') || '생성 실패') + ')');
+                }
+
+                // 5. ZIP 압축 파일 생성
+                if (batchBtn) {
+                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>📦 ${collectedFiles.length}개 파일 압축 중...</span>`;
+                }
+
+                const batchZip = new JSZip();
+                collectedFiles.forEach(f => {
+                    batchZip.file(f.fileName, f.blob);
+                });
+
+                const zipBlob = await batchZip.generateAsync({
+                    type: 'blob',
+                    mimeType: 'application/zip'
+                });
+
+                const isTogether = currentSundayType === "다함께 주일";
+                const zipBase = isTogether ? '다함께주일예배자료' : '주일예배자료';
+                const zipFileName = `${datePrefix}_${zipBase}_일괄.zip`;
+
+                downloadBlobFile(zipBlob, zipFileName);
+
+                showToast(`🎉 [${zipFileName}] 일괄 다운로드 완료! (${collectedFiles.length}개 파일 포함)`, 'success');
+
+                if (failures.length > 0) {
+                    alert(`ℹ️ 일괄 다운로드 완료 (${collectedFiles.length}개 포함)\n\n[제외/실패된 일부 항목]\n${failures.join('\n')}`);
+                }
+
+            } catch (err) {
+                console.error('[일괄 다운로드 오류]:', err);
+                alert(`🚨 일괄 다운로드 중 오류가 발생했습니다:\n\n${err.message}`);
+                showToast(`일괄 다운로드 실패: ${err.message}`, 'error');
+            } finally {
+                if (batchBtn) {
+                    batchBtn.disabled = false;
+                    batchBtn.innerHTML = originalHtml || `<i class="fa-solid fa-cloud-arrow-down" style="font-size: 1.15rem;"></i> <span>일괄 다운로드</span>`;
+                }
+            }
         }
 
         function escapeHtml(text) {
