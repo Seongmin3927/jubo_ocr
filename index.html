@@ -2000,6 +2000,7 @@
                         <div class="hub-card-meta">
                             <div class="hub-meta-item"><strong>설교자:</strong> <span id="summaryPreacher">-</span></div>
                             <div class="hub-meta-item"><strong>설교제목:</strong> <span id="summarySermonTitle">-</span></div>
+                            <div class="hub-meta-item"><strong>찬송 배정:</strong> <span id="summaryHymns" style="font-weight: 700; color: #ea580c;">-</span></div>
                         </div>
 
                         <div class="hub-template-box">
@@ -2385,12 +2386,23 @@
 
             const summaryPreacher = document.getElementById('summaryPreacher');
             const summarySermonTitle = document.getElementById('summarySermonTitle');
+            const summaryHymns = document.getElementById('summaryHymns');
 
             if (summaryPreacher) {
                 summaryPreacher.textContent = preacherVal || '(미입력)';
             }
             if (summarySermonTitle) {
                 summarySermonTitle.textContent = titleVal || '(미입력)';
+            }
+            if (summaryHymns) {
+                const h1 = document.getElementById('pptx_input_2')?.value || (Array.isArray(last15Results) ? last15Results.find(r => r.id === 2)?.value : '') || '';
+                const h2 = document.getElementById('pptx_input_4')?.value || (Array.isArray(last15Results) ? last15Results.find(r => r.id === 4)?.value : '') || '';
+                const h3 = document.getElementById('pptx_input_12')?.value || (Array.isArray(last15Results) ? last15Results.find(r => r.id === 12)?.value : '') || '';
+                const parts = [];
+                if (h1) parts.push(`1: ${h1}`);
+                if (h2) parts.push(`2: ${h2}`);
+                if (h3) parts.push(`3: ${h3}`);
+                summaryHymns.textContent = parts.length > 0 ? parts.join(' | ') : '(미배정)';
             }
         }
 
@@ -3115,21 +3127,121 @@
             const gyodok = findVal(['성시교독', '교독문', '교독']);
             if (gyodok) ruleDefs[2].value = gyodok;
 
-            // 2, 4, 12, 13. 찬송가
-            const hymn1 = findVal(['첫번째 찬송', '찬송 1', '첫번째찬송', '입례찬송', '입례 찬송']);
-            const hymn2 = findVal(['두번째 찬송', '찬송 2', '두번째찬송', '설교전 찬송', '설교 전 찬송']);
-            const sermonHymn = findVal(['설교후 찬양', '설교 후 찬양', '결단찬양', '결단 찬송', '파송찬송', '파송 찬양']);
+            // 2, 4, 12, 13. 찬송가 3곡 순서별 슬라이드 자리 자동 매핑
+            // 처음 나오는 찬송가 장수 ➔ 첫번째 자리 ({2번}, ruleDefs[1])
+            // 두번째 나오는 찬송가 장수 ➔ 두번째 자리 ({4번}, ruleDefs[3])
+            // 세번째 나오는 찬송가 장수 ➔ 세번째 자리 ({12번}, {13번}, ruleDefs[11], ruleDefs[12])
 
-            if (hymn1) ruleDefs[1].value = hymn1;
-            if (hymn2) ruleDefs[3].value = hymn2;
-            if (sermonHymn) {
-                ruleDefs[11].value = sermonHymn;
-                ruleDefs[12].value = sermonHymn;
+            // 슬라이드 위치별 규격 서식 포매터
+            const formatHymnForSpot = (hymnObj, spotIndex) => {
+                if (!hymnObj) return "";
+                const num = hymnObj.num;
+                const raw = (hymnObj.raw || '').trim();
+
+                if (spotIndex === 1) {
+                    // 슬라이드 11 양식: [{2번}]- ppt ➔ '찬송가 N장' 적용
+                    if (/^찬송가\s*\d+\s*장?/i.test(raw)) {
+                        return raw.includes('장') ? raw : `${raw}장`;
+                    }
+                    return `찬송가 ${num}장`;
+                } else {
+                    // 슬라이드 13 양식: [{4번}] (ppt) / 슬라이드 22: [찬송] 1부-{12번}, 2부-{13번} ➔ 'N장' 적용
+                    if (/^\d+\s*장?$/i.test(raw)) {
+                        return raw.includes('장') ? raw : `${raw}장`;
+                    }
+                    if (/^찬송가?\s*(\d+\s*장?)$/i.test(raw)) {
+                        const m = raw.match(/\d+\s*장?/);
+                        return m ? (m[0].includes('장') ? m[0] : `${m[0]}장`) : `${num}장`;
+                    }
+                    return `${num}장`;
+                }
+            };
+
+            // 전체 items에서 찬송가 장수들을 등장 순서대로 수집
+            const orderedHymns = [];
+            items.forEach(it => {
+                const k = (it.key || '').trim();
+                const v = (it.value || '').trim();
+
+                // 찬양대/성가대/특송 등은 찬송가에서 제외
+                if (/(?:찬양대|성가대|특송|특별찬양)/i.test(k) || /(?:찬양대|성가대|특송|특별찬양)/i.test(v)) {
+                    return;
+                }
+
+                const isHymnKey = /(?:찬송|찬양|입례|결단|파송)/i.test(k);
+                const hasJangInVal = /\b\d{1,3}\s*장\b/.test(v);
+
+                if (isHymnKey || hasJangInVal) {
+                    // "3장, 187장, 191장" 또는 "3, 187, 191" 또는 단독 "3장" 등 전체 추출
+                    const regex = /(?:찬송가?|찬양)?\s*(?:\([^)]*\))?\s*(\d{1,3})\s*장?/g;
+                    let match;
+                    let matchesInItem = [];
+                    while ((match = regex.exec(v)) !== null) {
+                        const num = parseInt(match[1], 10);
+                        if (num >= 1 && num <= 645) {
+                            matchesInItem.push({ num: num, raw: match[0].trim() });
+                        }
+                    }
+
+                    // 만약 v에 숫자가 없고 k에 숫자가 있는 경우 (예: key: '찬송 3장')
+                    if (matchesInItem.length === 0 && isHymnKey) {
+                        const km = (v + ' ' + k).match(/\b(\d{1,3})\b/);
+                        if (km) {
+                            const num = parseInt(km[1], 10);
+                            if (num >= 1 && num <= 645) {
+                                matchesInItem.push({ num: num, raw: `${num}장` });
+                            }
+                        }
+                    }
+
+                    matchesInItem.forEach(h => orderedHymns.push(h));
+                }
+            });
+
+            // 1) 명시적 시맨틱 키 우선 확인
+            const explicitHymn1 = findVal(['첫번째 찬송', '찬송 1', '첫번째찬송', '입례찬송', '입례 찬송']);
+            const explicitHymn2 = findVal(['두번째 찬송', '찬송 2', '두번째찬송', '설교전 찬송', '설교 전 찬송']);
+            const explicitHymn3_1 = findVal(['설교후 찬양 [1부]', '설교후 찬송 [1부]', '설교 후 찬양 [1부]', '1부 결단찬양']);
+            const explicitHymn3_2 = findVal(['설교후 찬양 [2부]', '설교후 찬송 [2부]', '설교 후 찬양 [2부]', '2부 결단찬양']);
+            const explicitHymn3 = findVal(['세번째 찬송', '찬송 3', '세번째찬송', '설교후 찬양', '설교 후 찬양', '설교후 찬송', '설교 후 찬송', '결단찬양', '결단 찬송', '파송찬송', '파송 찬양']);
+
+            if (explicitHymn1) {
+                const m = explicitHymn1.match(/\d+/);
+                ruleDefs[1].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn1 } : null, 1) || explicitHymn1;
+            }
+            if (explicitHymn2) {
+                const m = explicitHymn2.match(/\d+/);
+                ruleDefs[3].value = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn2 } : null, 2) || explicitHymn2;
+            }
+            if (explicitHymn3_1 || explicitHymn3_2) {
+                if (explicitHymn3_1) {
+                    const m1 = explicitHymn3_1.match(/\d+/);
+                    ruleDefs[11].value = formatHymnForSpot(m1 ? { num: parseInt(m1[0], 10), raw: explicitHymn3_1 } : null, 3) || explicitHymn3_1;
+                }
+                if (explicitHymn3_2) {
+                    const m2 = explicitHymn3_2.match(/\d+/);
+                    ruleDefs[12].value = formatHymnForSpot(m2 ? { num: parseInt(m2[0], 10), raw: explicitHymn3_2 } : null, 3) || explicitHymn3_2;
+                }
+            } else if (explicitHymn3) {
+                const m = explicitHymn3.match(/\d+/);
+                const h3Formatted = formatHymnForSpot(m ? { num: parseInt(m[0], 10), raw: explicitHymn3 } : null, 3) || explicitHymn3;
+                ruleDefs[11].value = h3Formatted;
+                ruleDefs[12].value = h3Formatted;
             }
 
-            const generalHymn = findVal(['찬송가', '찬송']);
-            if (generalHymn && !ruleDefs[1].value) {
-                ruleDefs[1].value = generalHymn;
+            // 2) 순서대로 등장한 찬송가(orderedHymns)를 첫번째, 두번째, 세번째 자리에 자동 배정
+            if (!ruleDefs[1].value && orderedHymns.length >= 1) {
+                ruleDefs[1].value = formatHymnForSpot(orderedHymns[0], 1);
+            }
+            if (!ruleDefs[3].value && orderedHymns.length >= 2) {
+                ruleDefs[3].value = formatHymnForSpot(orderedHymns[1], 2);
+            }
+            if (!ruleDefs[11].value && orderedHymns.length >= 3) {
+                const h3 = formatHymnForSpot(orderedHymns[2], 3);
+                ruleDefs[11].value = h3;
+                ruleDefs[12].value = h3;
+            } else if (ruleDefs[11].value && !ruleDefs[12].value) {
+                ruleDefs[12].value = ruleDefs[11].value;
             }
 
             // 하위 호환 및 DOM 엘리먼트 확보: hidden input 엘리먼트 생성 및 last15Results 업데이트
