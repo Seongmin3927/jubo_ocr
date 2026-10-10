@@ -2698,54 +2698,80 @@
 
             const extractNumbersFromStr = (str, isHymnContext = false) => {
                 if (!str) return;
-                // 1. "찬송가 3장", "찬송 3장", "찬송(2부) 3장", "찬양 187장", "3장", "187장", "191장"
+                // 봉헌/헌금 관련 텍스트는 찬송가 다운로드 대상에서 완전 제외
+                if (/(?:봉헌|헌금)/i.test(str)) return;
+
+                // '1부', '2부', '3부', '4부' 등 부수 표기는 찬송가 번호로 오인식되지 않도록 제거
+                const cleanStr = str.replace(/[1-4]\s*부/g, ' ');
+
+                // 1. "찬송가 3장", "찬송 3장", "3장", "187장", "191장" 등 명시적 장수 패턴
                 const explicitRegexes = [
-                    /(?:찬송가?|찬양)\s*(?:\([^)]*\))?\s*\*?\s*(\d{1,3})\s*장?/gi,
+                    /(?:찬송가?|찬양)\s*(?:\([^)]*\))?\s*\*?\s*(\d{1,3})\s*장/gi,
                     /(?:^|[^\d])(\d{1,3})\s*장(?=[^\d]|$)/gi
                 ];
                 for (const regex of explicitRegexes) {
-                    const matches = str.matchAll(regex);
+                    const matches = cleanStr.matchAll(regex);
                     for (const match of matches) {
                         addHymnVal(match[1]);
                     }
                 }
-                // 2. 찬송 맥락(항목명이 '찬송', '찬송가', '찬양', '입례', '결단', '파송' 등)인 경우 숫자만 나열된 것도 감지
+
+                // 2. 찬송 맥락인 경우(단, '장'이 안 붙었더라도 찬송가/찬송 접두어가 있거나 순수 숫자 목록인 경우)
                 if (isHymnContext) {
-                    const numMatches = str.matchAll(/\b(\d{1,3})\b/g);
-                    for (const match of numMatches) {
-                        addHymnVal(match[1]);
+                    const prefixMatch = cleanStr.match(/(?:찬송가?|찬양)\s*(\d{1,3})(?=[^\d]|$)/i);
+                    if (prefixMatch) {
+                        addHymnVal(prefixMatch[1]);
+                    } else {
+                        const numMatches = cleanStr.matchAll(/\b(\d{1,3})\b/g);
+                        for (const match of numMatches) {
+                            addHymnVal(match[1]);
+                        }
                     }
                 }
             };
 
-            // 1. currentDynamicItems (Gemini 동적 추출 항목) 전수 탐색
-            if (Array.isArray(currentDynamicItems)) {
-                currentDynamicItems.forEach(it => {
-                    const k = (it.key || '').trim();
-                    const v = (it.value || '').trim();
-                    const isHymnKey = /(?:찬송|찬양|입례|결단|파송)/i.test(k);
-                    extractNumbersFromStr(v, isHymnKey);
-                    // 항목명 자체에 장수가 명시된 경우(예: '찬송 288장')
-                    if (isHymnKey) {
-                        extractNumbersFromStr(k, true);
+            // 1. ruleDefs에서 2번(Spot 1: 첫번째 찬송), 4번(Spot 2: 두번째 찬송), 13번(Spot 3: 2부 설교후 찬송) 수집
+            // (주의: 12번 자리는 '1부 설교후 찬송 곡명'이므로 제외)
+            if (ruleDefs && Array.isArray(ruleDefs)) {
+                [1, 3, 12].forEach(idx => {
+                    if (ruleDefs[idx] && ruleDefs[idx].value) {
+                        extractNumbersFromStr(ruleDefs[idx].value, true);
                     }
                 });
             }
 
-            // 2. 지정 추출 결과값(ruleDefs)에서 탐색
-            if (ruleDefs && Array.isArray(ruleDefs)) {
-                ruleDefs.forEach(r => {
-                    const isHymnKey = /(?:찬송|찬양)/i.test(r.label || '');
-                    extractNumbersFromStr(r.value, isHymnKey);
-                });
-            }
-
-            // 3. 검토 폼 입력 필드(사용자가 수정한 지정 추출값)에서도 탐색
-            for (let i = 1; i <= 15; i++) {
-                const inputEl = document.getElementById(`pptx_input_${i}`);
+            // 2. 검토 폼 입력 필드(pptx_input_2, pptx_input_4, pptx_input_13)에서도 탐색
+            [2, 4, 13].forEach(id => {
+                const inputEl = document.getElementById(`pptx_input_${id}`);
                 if (inputEl && inputEl.value) {
-                    extractNumbersFromStr(inputEl.value, i === 2 || i === 4 || i === 12 || i === 13);
+                    extractNumbersFromStr(inputEl.value, true);
                 }
+            });
+
+            // 3. currentDynamicItems (Gemini 동적 추출 항목) 보조 탐색
+            if (Array.isArray(currentDynamicItems)) {
+                currentDynamicItems.forEach(it => {
+                    const k = (it.key || '').trim();
+                    const v = (it.value || '').trim();
+
+                    // 봉헌/헌금/찬양대/성가대/특송 등은 전면 배제
+                    if (/(?:봉헌|헌금|찬양대|성가대|특송|특별찬양)/i.test(k) || /(?:봉헌|헌금|찬양대|성가대|특송|특별찬양)/i.test(v)) {
+                        return;
+                    }
+
+                    // 1부 설교후 찬양 곡명 항목 배제
+                    if (/(?:1부.*(?:찬양|찬송|결단)|설교후.*1부)/i.test(k)) {
+                        return;
+                    }
+
+                    const isHymnKey = /(?:찬송|찬양|입례|결단|파송)/i.test(k);
+                    extractNumbersFromStr(v, isHymnKey);
+
+                    // 항목명 자체에 장수가 명시된 경우 (예: '찬송 288장') - 단, 1부/2부 제외
+                    if (isHymnKey && !/(?:1부|2부|3부|4부)/i.test(k)) {
+                        extractNumbersFromStr(k, false);
+                    }
+                });
             }
 
             return Array.from(hymns).sort();
@@ -3159,14 +3185,14 @@
                 }
             };
 
-            // 전체 items에서 찬송가 장수들을 등장 순서대로 수집
+            // 전체 items에서 찬송가 장수들을 등장 순서대로 수집 (주일 대예배 회중 찬송 중심)
             const orderedHymns = [];
             items.forEach(it => {
                 const k = (it.key || '').trim();
                 const v = (it.value || '').trim();
 
-                // 찬양대/성가대/특송 등은 찬송가에서 제외
-                if (/(?:찬양대|성가대|특송|특별찬양)/i.test(k) || /(?:찬양대|성가대|특송|특별찬양)/i.test(v)) {
+                // 찬양대/성가대/특송/봉헌/헌금 등은 찬송가 매핑에서 전면 제외
+                if (/(?:찬양대|성가대|특송|특별찬양|봉헌|헌금)/i.test(k) || /(?:찬양대|성가대|특송|특별찬양|봉헌|헌금)/i.test(v)) {
                     return;
                 }
 
@@ -3174,20 +3200,43 @@
                 const hasJangInVal = /\b\d{1,3}\s*장\b/.test(v);
 
                 if (isHymnKey || hasJangInVal) {
-                    // "3장, 187장, 191장" 또는 "3, 187, 191" 또는 단독 "3장" 등 전체 추출
-                    const regex = /(?:찬송가?|찬양)?\s*(?:\([^)]*\))?\s*(\d{1,3})\s*장?/g;
-                    let match;
-                    let matchesInItem = [];
-                    while ((match = regex.exec(v)) !== null) {
-                        const num = parseInt(match[1], 10);
+                    // v에서 '1부', '2부', '3부', '4부'는 찬송가 장수가 아니므로 제거
+                    const cleanV = v.replace(/[1-4]\s*부/g, ' ');
+                    const matchesInItem = [];
+
+                    // 1) 명시적 "N장" 패턴 우선 매칭 ("찬송가 3장", "3장", "187장", "191장")
+                    const jangRegex = /(?:^|[^\d])(\d{1,3})\s*장(?=[^\d]|$)/g;
+                    let m;
+                    while ((m = jangRegex.exec(cleanV)) !== null) {
+                        const num = parseInt(m[1], 10);
                         if (num >= 1 && num <= 645) {
-                            matchesInItem.push({ num: num, raw: match[0].trim() });
+                            matchesInItem.push({ num: num, raw: `${num}장` });
                         }
                     }
 
-                    // 만약 v에 숫자가 없고 k에 숫자가 있는 경우 (예: key: '찬송 3장')
+                    // 2) 장수가 붙지 않은 경우: 찬송 맥락이고 "찬송가 3", "찬송 187" 또는 순수 숫자 나열인 경우
                     if (matchesInItem.length === 0 && isHymnKey) {
-                        const km = (v + ' ' + k).match(/\b(\d{1,3})\b/);
+                        const prefixMatch = cleanV.match(/(?:찬송가?|찬양)\s*(\d{1,3})(?=[^\d]|$)/i);
+                        if (prefixMatch) {
+                            const num = parseInt(prefixMatch[1], 10);
+                            if (num >= 1 && num <= 645) {
+                                matchesInItem.push({ num: num, raw: `${num}장` });
+                            }
+                        } else {
+                            const numRegex = /\b(\d{1,3})\b/g;
+                            while ((m = numRegex.exec(cleanV)) !== null) {
+                                const num = parseInt(m[1], 10);
+                                if (num >= 1 && num <= 645) {
+                                    matchesInItem.push({ num: num, raw: `${num}장` });
+                                }
+                            }
+                        }
+                    }
+
+                    // 3) v에 숫자가 없고 k에 숫자가 있는 경우 (예: key: '찬송 3장' 또는 '찬송 288장') - 단, 1부/2부 제외
+                    if (matchesInItem.length === 0 && isHymnKey) {
+                        const cleanK = k.replace(/[1-4]\s*부/g, ' ');
+                        const km = cleanK.match(/(\d{1,3})\s*장/) || cleanK.match(/(?:찬송가?|찬양)\s*(\d{1,3})/);
                         if (km) {
                             const num = parseInt(km[1], 10);
                             if (num >= 1 && num <= 645) {
