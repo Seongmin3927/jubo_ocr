@@ -3042,6 +3042,7 @@
         let selectedFile = null;
         let selectedBase64 = null;
         let last15Results = [];
+        let ruleDefs = [];
         let currentSundayType = "일반 주일";
         let detectedWorshipDate = '';
         let isHymnManuallyEdited = false;
@@ -3479,7 +3480,7 @@
         // 동적 항목 목록을 Step 3 PPTX 자막 생성 및 찬송가/성경 모듈과 매핑 동기화
         function syncDynamicItemsToPptxForms(items) {
             // ruleDefs 형식으로 변환하여 찬송가 및 성경 감지 유지
-            const ruleDefs = [
+            ruleDefs = [
                 { id: 1, label: "설교자", value: "" },
                 { id: 2, label: "첫번째 찬송", value: "" },
                 { id: 3, label: "성시교독", value: "" },
@@ -6503,6 +6504,15 @@
             const pptx = new PptxConstructor();
             pptx.layout = 'LAYOUT_16x9';
 
+            // 최신 편집 상태를 보장하기 위해 필요 시 동적 항목 동기화 실행
+            if (typeof syncDynamicItemsToPptxForms === 'function' && Array.isArray(currentDynamicItems) && currentDynamicItems.length > 0) {
+                try {
+                    syncDynamicItemsToPptxForms(currentDynamicItems);
+                } catch (e) {
+                    console.warn('[syncDynamicItemsToPptxForms warning]:', e);
+                }
+            }
+
             // 1. 핵심 데이터 추출 및 정리
             const items = Array.isArray(currentDynamicItems) ? currentDynamicItems : [];
             const findItemVal = (keys) => {
@@ -6517,30 +6527,54 @@
                 return '';
             };
 
+            // rules 안전 참조 (last15Results 또는 글로벌 ruleDefs)
+            const activeRules = (typeof last15Results !== 'undefined' && Array.isArray(last15Results) && last15Results.length > 0)
+                ? last15Results
+                : ((typeof ruleDefs !== 'undefined' && Array.isArray(ruleDefs) && ruleDefs.length > 0) ? ruleDefs : []);
+
+            const getRuleValById = (id) => {
+                if (activeRules && activeRules.length) {
+                    const found = activeRules.find(r => r && r.id === id);
+                    if (found && found.value && found.value.trim()) return found.value.trim();
+                }
+                const el = document.getElementById(`pptx_input_${id}`);
+                return el && el.value ? el.value.trim() : '';
+            };
+
             const churchName = findItemVal(['교회명', '교회']) || '두레교회';
             const worshipDate = detectedWorshipDate || getWorshipDatePrefix() || '2026년 주일예배';
             const sundayType = currentSundayType || '일반주일';
 
-            const sermonTitle = (ruleDefs && ruleDefs[10] && ruleDefs[10].value) || findItemVal(['설교제목', '설교', '말씀제목', '제목']) || '주님의 은혜';
-            const preacher = (ruleDefs && ruleDefs[11] && ruleDefs[11].value) || findItemVal(['설교자', '말씀', '설교']) || '이문장 목사';
-            const biblePassage = (ruleDefs && ruleDefs[8] && ruleDefs[8].value) 
-                || (document.getElementById('biblePassageInput') ? document.getElementById('biblePassageInput').value : '') 
-                || findItemVal(['본문', '성경본문', '성경']) || '요한복음 16:5-7';
+            // 설교 제목 (id: 11)
+            const sermonTitle = getRuleValById(11) || findItemVal(['설교제목', '설교 제목', '말씀제목', '설교', '제목']) || '주님의 은혜';
+            // 설교자 (id: 1)
+            const preacher = getRuleValById(1) || findItemVal(['설교자', '말씀선포', '설교담당', '말씀']) || '이문장 목사';
+            // 성경 본문 (id: 9)
+            const biblePassage = (document.getElementById('biblePassageInput') ? document.getElementById('biblePassageInput').value.trim() : '')
+                || getRuleValById(9)
+                || findItemVal(['성경본문', '성경 본문', '본문말씀', '본문', '성경']) || '요한복음 16:5-7';
 
-            const prayer1 = (ruleDefs && ruleDefs[4] && ruleDefs[4].value) || findItemVal(['대표기도 [1부]', '1부 기도', '1부대표기도']) || '';
-            const prayer2 = (ruleDefs && ruleDefs[5] && ruleDefs[5].value) || findItemVal(['대표기도 [2부]', '2부 기도', '2부대표기도']) || '';
-            const generalPrayer = prayer1 && prayer2 ? `1부: ${prayer1}  /  2부: ${prayer2}` : (prayer1 || prayer2 || findItemVal(['기도', '대표기도']) || '성도 일동');
+            // 대표기도자 (1부 id: 5, 2부 id: 6)
+            const prayer1 = getRuleValById(5) || findItemVal(['대표기도 [1부]', '대표기도자 [1부]', '1부 기도', '1부대표기도']) || '';
+            const prayer2 = getRuleValById(6) || findItemVal(['대표기도 [2부]', '대표기도자 [2부]', '2부 기도', '2부대표기도']) || '';
+            const generalPrayer = prayer1 && prayer2 ? `1부: ${prayer1}  /  2부: ${prayer2}` : (prayer1 || prayer2 || findItemVal(['대표기도자', '대표기도', '기도자', '기도']) || '성도 일동');
 
-            const reader1 = (ruleDefs && ruleDefs[6] && ruleDefs[6].value) || findItemVal(['성경봉독 [1부]', '1부 봉독']) || '';
-            const reader2 = (ruleDefs && ruleDefs[7] && ruleDefs[7].value) || findItemVal(['성경봉독 [2부]', '2부 봉독']) || '';
-            const generalReader = reader1 && reader2 ? `1부: ${reader1}  /  2부: ${reader2}` : (reader1 || reader2 || findItemVal(['봉독자', '성경봉독자']) || '다 함께');
+            // 성경봉독자 (1부 id: 7, 2부 id: 8)
+            const reader1 = getRuleValById(7) || findItemVal(['성경봉독 담당자 [1부]', '봉독자 [1부]', '1부 봉독']) || '';
+            const reader2 = getRuleValById(8) || findItemVal(['성경봉독 담당자 [2부]', '봉독자 [2부]', '2부 봉독']) || '';
+            const generalReader = reader1 && reader2 ? `1부: ${reader1}  /  2부: ${reader2}` : (reader1 || reader2 || findItemVal(['성경봉독자', '성경봉독 담당자', '성경봉독', '봉독자']) || '다 함께');
 
-            const hymn1 = (ruleDefs && ruleDefs[1] && ruleDefs[1].value) || findItemVal(['찬송가 1', '첫번째 찬송', '찬송']) || '찬송가 3장';
-            const hymn2 = (ruleDefs && ruleDefs[3] && ruleDefs[3].value) || (ruleDefs && ruleDefs[12] && ruleDefs[12].value) || findItemVal(['찬송가 2', '두번째 찬송', '결단찬양']) || '찬송가 191장';
-            const hymn3 = (ruleDefs && ruleDefs[13] && ruleDefs[13].value) || findItemVal(['봉헌송', '헌금송', '찬송가 3']) || '찬송가 50장';
+            // 찬송가 (첫번째 id: 2, 두번째 id: 4, 설교후 id: 12, 13)
+            const hymn1 = getRuleValById(2) || findItemVal(['첫번째 찬송', '찬송가 1', '찬송']) || '찬송가 3장';
+            const hymn2 = getRuleValById(4) || getRuleValById(13) || findItemVal(['두번째 찬송', '찬송가 2', '결단찬양']) || '찬송가 191장';
+            const hymn3 = getRuleValById(12) || getRuleValById(13) || findItemVal(['봉헌송', '헌금송', '찬송가 3']) || '찬송가 50장';
 
-            const choirName = (ruleDefs && ruleDefs[9] && ruleDefs[9].value) || findItemVal(['찬양대', '특별찬양', '성가대']) || '두레찬양대';
-            const gyodokNum = detectedGyodokNo || (ruleDefs && ruleDefs[2] && ruleDefs[2].value ? (ruleDefs[2].value.match(/\d+/) || ['32'])[0] : '32');
+            // 찬양대 (id: 10)
+            const choirName = getRuleValById(10) || findItemVal(['찬양대', '두레찬양대', '특별찬양', '성가대']) || '두레찬양대';
+
+            // 성시교독 (id: 3)
+            const gyodokVal = getRuleValById(3) || findItemVal(['성시교독', '교독문', '교독']) || '';
+            const gyodokNum = detectedGyodokNo || (gyodokVal.match(/\d+/) || ['32'])[0];
 
             // 색상 테마 상수 (다크 네이비 & 고대비 가독성)
             const COLOR_BG = '0A1128';
