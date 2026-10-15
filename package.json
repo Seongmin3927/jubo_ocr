@@ -1,0 +1,21 @@
+{
+  "name": "church-bulletin-ocr",
+  "version": "1.0.0",
+  "description": "Naver CLOVA OCR API와 **Cloudflare Pages Functions**를 활용한 서버리스 프록시 구조로 제작된 초고성능 주보 분석 웹 애플리케이션입니다.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Seongmin3927/jubo_ocr.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "homepage": "https://github.com/Seongmin3927/jubo_ocr#readme",
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}
