@@ -2161,7 +2161,7 @@
                 </button>
                 <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                     <button type="button" class="btn-full-pptx-cta" id="btnFullWorshipPptxStep2" onclick="handleGenerateFullWorshipPptx()">
-                        <i class="fa-solid fa-file-powerpoint"></i> 예배용 PPTX 다운로드 (원클릭)
+                        <i class="fa-solid fa-cloud-arrow-down"></i> 예배용 PPTX 다운로드 (원클릭)
                     </button>
                     <button type="button" class="btn-nav-next" id="confirmDataBtn" onclick="confirmDynamicItems()">
                         <i class="fa-solid fa-circle-check"></i> 데이터 확정하기 (자막 생성) <i class="fa-solid fa-arrow-right"></i>
@@ -2334,11 +2334,8 @@
                     <i class="fa-solid fa-arrow-left"></i> 데이터 수정하러 가기
                 </button>
                 <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                    <button type="button" class="btn-full-pptx-cta" id="btnFullWorshipPptxStep3" onclick="handleGenerateFullWorshipPptx()">
-                        <i class="fa-solid fa-file-powerpoint"></i> 예배용 PPTX 다운로드 (원클릭)
-                    </button>
-                    <button type="button" class="btn-batch-download" id="batchDownloadBtn" onclick="executeBatchDownload()">
-                        <i class="fa-solid fa-cloud-arrow-down" style="font-size: 1.15rem;"></i> <span>일괄 다운로드</span>
+                    <button type="button" class="btn-batch-download" id="batchDownloadBtn" onclick="handleGenerateFullWorshipPptx()">
+                        <i class="fa-solid fa-cloud-arrow-down" style="font-size: 1.15rem;"></i> <span>예배용 PPTX 일괄 다운로드 (4종 개별 저장)</span>
                     </button>
                 </div>
             </div>
@@ -5412,7 +5409,19 @@
         // 성경봉독 자막 PPTX Blob 생성 함수
         // =========================================================================
         async function generateBiblePptxBlob() {
-            const passageStr = biblePassageInput ? biblePassageInput.value.trim() : '';
+            let passageStr = biblePassageInput ? biblePassageInput.value.trim() : '';
+            if (!passageStr) {
+                const input9 = document.getElementById('pptx_input_9');
+                if (input9 && input9.value) passageStr = input9.value.trim();
+            }
+            if (!passageStr && Array.isArray(last15Results)) {
+                const found = last15Results.find(r => r && r.id === 9);
+                if (found && found.value) passageStr = found.value.trim();
+            }
+            if (!passageStr && Array.isArray(currentDynamicItems)) {
+                const found = currentDynamicItems.find(it => /(?:본문|성경본문|성경)/i.test(it.key || ''));
+                if (found && found.value) passageStr = found.value.trim();
+            }
             const refs = parseBibleRefInput(passageStr);
 
             if (refs.length === 0) {
@@ -5894,6 +5903,13 @@
         // 시놀로지 NAS 찬송가 PPT 파일들 Blob 수신 함수
         // ===================================================
         async function fetchHymnBlobs() {
+            if (!detectedHymnNumbers || !detectedHymnNumbers.length) {
+                if (typeof detectHymnNumbers === 'function' && Array.isArray(last15Results) && last15Results.length > 0) {
+                    try {
+                        detectedHymnNumbers = detectHymnNumbers(last15Results);
+                    } catch (e) {}
+                }
+            }
             if (!detectedHymnNumbers || !detectedHymnNumbers.length) return [];
             const results = [];
             for (let i = 0; i < detectedHymnNumbers.length; i++) {
@@ -6182,12 +6198,48 @@
         // ===================================================
         // Step 3 일괄 다운로드 함수 (지정한 폴더에 모든 개별 파일 일괄 직접 저장)
         // ===================================================
+        // 예배 자료 4종 일괄 다운로드 함수 (주보자막, 찬송가, 교독문, 성경봉독)
+        // - 새로운 PPT를 만드는 것이 아닌, 자막/자료 생성단계의 4종 PPT를 일괄 다운로드
+        // - 4종의 파일을 통합하거나 ZIP으로 압축하지 않고, 각각 분리된 개별 파일로 다운로드
+        // - 브라우저 File System Access API를 통해 바탕화면이나 지정 폴더를 1회 선택하면 해당 위치에 한꺼번에 저장
+        // ===================================================
         async function executeBatchDownload() {
             if (!checkPaywallPermission()) return;
-            const batchBtn = document.getElementById('batchDownloadBtn');
-            const originalHtml = batchBtn ? batchBtn.innerHTML : '';
 
-            // 1. File System Access API 지원 여부 확인 및 대상 폴더 1회 지정
+            if ((!currentDynamicItems || currentDynamicItems.length === 0) && (!last15Results || last15Results.length === 0)) {
+                showToast('먼저 주보 이미지를 업로드하고 분석을 완료해주세요.', 'warning');
+                return;
+            }
+
+            // 1. 최신 데이터 동기화 (Step 2에서 바로 클릭했을 경우에도 대비)
+            if (typeof syncDynamicItemsToPptxForms === 'function' && Array.isArray(currentDynamicItems) && currentDynamicItems.length > 0) {
+                try {
+                    syncDynamicItemsToPptxForms(currentDynamicItems);
+                } catch (e) {
+                    console.warn('[syncDynamicItemsToPptxForms warning]:', e);
+                }
+            }
+
+            // 찬송가 번호 및 교독문 번호 보정
+            if ((!detectedHymnNumbers || !detectedHymnNumbers.length) && typeof detectHymnNumbers === 'function') {
+                try {
+                    detectedHymnNumbers = detectHymnNumbers(last15Results || ruleDefs);
+                } catch (e) {}
+            }
+            if (!detectedGyodokNo && Array.isArray(last15Results)) {
+                const gyItem = last15Results.find(r => r && r.id === 3);
+                if (gyItem && gyItem.value) {
+                    const m = gyItem.value.match(/\d+/);
+                    if (m) detectedGyodokNo = parseInt(m[0], 10);
+                }
+            }
+
+            const btnStep2 = document.getElementById('btnFullWorshipPptxStep2');
+            const batchBtn = document.getElementById('batchDownloadBtn');
+            const origHtmlStep2 = btnStep2 ? btnStep2.innerHTML : '';
+            const origHtmlBatch = batchBtn ? batchBtn.innerHTML : '';
+
+            // 2. File System Access API 지원 여부 확인 및 대상 폴더(바탕화면 등) 1회 지정
             // (브라우저 User Gesture 유효성을 위해 클릭 직후 가장 먼저 폴더 선택창 호출)
             let dirHandle = null;
             if (typeof window.showDirectoryPicker === 'function') {
@@ -6195,7 +6247,7 @@
                     dirHandle = await window.showDirectoryPicker({
                         id: 'worship-materials-batch-dir',
                         mode: 'readwrite',
-                        startIn: 'downloads'
+                        startIn: 'desktop'
                     });
                 } catch (pickerErr) {
                     if (pickerErr.name === 'AbortError') {
@@ -6207,16 +6259,24 @@
                 }
             }
 
-            try {
+            const updateLoadingStatus = (msg) => {
+                if (btnStep2) {
+                    btnStep2.disabled = true;
+                    btnStep2.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>${msg}</span>`;
+                }
                 if (batchBtn) {
                     batchBtn.disabled = true;
-                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>1/4 주일예배자막 생성 중...</span>`;
+                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>${msg}</span>`;
                 }
+            };
+
+            try {
+                updateLoadingStatus('1/4 주보자막 PPTX 생성 중...');
 
                 const savedFiles = [];
                 const failures = [];
 
-                // 헬퍼: 디렉토리 핸들이 있으면 직접 저장, 없으면 기존 downloadBlobFile 폴백
+                // 헬퍼: 디렉토리 핸들이 있으면 지정 위치에 직접 개별 저장, 없으면 기존 downloadBlobFile 폴백
                 const saveFile = async (blob, fileName, label) => {
                     if (dirHandle) {
                         const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
@@ -6225,26 +6285,24 @@
                         await writable.close();
                     } else {
                         downloadBlobFile(blob, fileName);
-                        await new Promise(r => setTimeout(r, 350));
+                        await new Promise(r => setTimeout(r, 400));
                     }
                     savedFiles.push({ fileName, label });
                 };
 
-                // 1. 주일예배자막 PPTX
+                // 1. 주보자막 PPTX
                 try {
                     const sundayRes = await generateSundayPptxBlob();
                     if (sundayRes && sundayRes.blob) {
-                        await saveFile(sundayRes.blob, sundayRes.fileName, '주일예배자막');
+                        await saveFile(sundayRes.blob, sundayRes.fileName, '주보자막');
                     }
                 } catch (e) {
-                    console.error('[일괄 다운로드] 주일예배자막 생성 실패:', e);
-                    failures.push(`주일예배자막: ${e.message}`);
+                    console.error('[일괄 다운로드] 주보자막 생성 실패:', e);
+                    failures.push(`주보자막: ${e.message}`);
                 }
 
-                // 2. 찬송가 PPT 파일들
-                if (batchBtn) {
-                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>2/4 찬송가 PPT 다운로드 중...</span>`;
-                }
+                // 2. 찬송가 PPT 파일들 (2~3곡)
+                updateLoadingStatus('2/4 찬송가 PPT 다운로드 중...');
                 if (detectedHymnNumbers && detectedHymnNumbers.length > 0) {
                     try {
                         const hymnFiles = await fetchHymnBlobs();
@@ -6261,9 +6319,7 @@
                 }
 
                 // 3. 교독문 PPTX
-                if (batchBtn) {
-                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>3/4 교독문 PPT 다운로드 중...</span>`;
-                }
+                updateLoadingStatus('3/4 교독문 PPT 다운로드 중...');
                 if (detectedGyodokNo) {
                     try {
                         const gyodokRes = await fetchGyodokBlob(detectedGyodokNo);
@@ -6276,10 +6332,8 @@
                     }
                 }
 
-                // 4. 성경봉독 PPTX
-                if (batchBtn) {
-                    batchBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>4/4 성경봉독 자막 생성 중...</span>`;
-                }
+                // 4. 성경봉독 자막 PPTX
+                updateLoadingStatus('4/4 성경봉독 자막 생성 중...');
                 try {
                     const bibleRes = await generateBiblePptxBlob();
                     if (bibleRes && bibleRes.blob) {
@@ -6294,15 +6348,16 @@
                     throw new Error('다운로드할 수 있는 자료가 없습니다. (오류: ' + (failures.join(', ') || '생성 실패') + ')');
                 }
 
+                // 유료화 다운로드 횟수 차감/기록
                 recordSuccessfulDownload();
 
                 const locationMsg = dirHandle
-                    ? `선택하신 폴더에 총 ${savedFiles.length}개 파일이 한 번에 일괄 저장되었습니다!`
-                    : `총 ${savedFiles.length}개 파일 다운로드가 완료되었습니다!`;
+                    ? `선택하신 폴더에 총 ${savedFiles.length}개 예배 자료 PPT가 개별 파일로 일괄 저장되었습니다!`
+                    : `총 ${savedFiles.length}개 예배 자료 PPT 개별 다운로드가 완료되었습니다!`;
                 showToast(`🎉 ${locationMsg}`, 'success');
 
                 if (failures.length > 0) {
-                    alert(`⚠️ 일괄 다운로드 완료 (${savedFiles.length}개 파일 저장됨)\n\n[제외/실패된 일부 항목]\n${failures.join('\n')}`);
+                    alert(`⚠️ 예배 자료 일괄 다운로드 완료 (${savedFiles.length}개 파일 저장됨)\n\n[제외/실패된 일부 항목]\n${failures.join('\n')}`);
                 }
 
             } catch (err) {
@@ -6310,12 +6365,21 @@
                 alert(`🚨 일괄 다운로드 중 오류가 발생했습니다:\n\n${err.message}`);
                 showToast(`일괄 다운로드 실패: ${err.message}`, 'error');
             } finally {
+                if (btnStep2) {
+                    btnStep2.disabled = false;
+                    btnStep2.innerHTML = origHtmlStep2 || `<i class="fa-solid fa-cloud-arrow-down"></i> 예배용 PPTX 다운로드 (원클릭)`;
+                }
                 if (batchBtn) {
                     batchBtn.disabled = false;
-                    batchBtn.innerHTML = originalHtml || `<i class="fa-solid fa-cloud-arrow-down" style="font-size: 1.15rem;"></i> <span>일괄 다운로드</span>`;
+                    batchBtn.innerHTML = origHtmlBatch || `<i class="fa-solid fa-cloud-arrow-down" style="font-size: 1.15rem;"></i> <span>예배용 PPTX 일괄 다운로드 (4종 개별 저장)</span>`;
                 }
             }
         }
+
+        // 호환성 별칭 연결
+        const handleGenerateFullWorshipPptx = executeBatchDownload;
+        window.handleGenerateFullWorshipPptx = executeBatchDownload;
+        window.executeBatchDownload = executeBatchDownload;
 
         // =========================================================================
         // Master Key & 유료화 제한 (Paywall) 시스템
@@ -6460,849 +6524,6 @@
                 });
             }
         })();
-
-        // =========================================================================
-        // 완성형 예배 PPTX 자동 생성 엔진 (PptxGenJS 기반, 16:9 와이드스크린 다크네이비)
-        // =========================================================================
-        async function handleGenerateFullWorshipPptx() {
-            if (!checkPaywallPermission()) return;
-
-            const btn2 = document.getElementById('btnFullWorshipPptxStep2');
-            const btn3 = document.getElementById('btnFullWorshipPptxStep3');
-
-            const setButtonsState = (loading) => {
-                const html = loading
-                    ? '<i class="fa-solid fa-spinner fa-spin"></i> <span>예배용 PPTX 생성 중...</span>'
-                    : '<i class="fa-solid fa-file-powerpoint"></i> <span>예배용 PPTX 다운로드 (원클릭)</span>';
-                if (btn2) { btn2.disabled = loading; btn2.innerHTML = html; }
-                if (btn3) { btn3.disabled = loading; btn3.innerHTML = html; }
-            };
-
-            try {
-                setButtonsState(true);
-                showToast('빔프로젝터용 예배 순서/본문 PPTX를 생성 중입니다...', 'info');
-
-                await generateFullWorshipPptx();
-
-                recordSuccessfulDownload();
-                showToast('🎉 예배용 PPTX 다운로드가 완료되었습니다!', 'success');
-
-            } catch (err) {
-                console.error('[Full Worship PPTX Generation Error]:', err);
-                alert(`🚨 예배용 PPTX 생성 실패: ${err.message}`);
-                showToast(`생성 실패: ${err.message}`, 'error');
-            } finally {
-                setButtonsState(false);
-            }
-        }
-
-        async function generateFullWorshipPptx() {
-            if (typeof PptxGenJS === 'undefined' && typeof window.PptxGenJS === 'undefined') {
-                throw new Error('PptxGenJS 라이브러리가 로드되지 않았습니다.');
-            }
-            const PptxConstructor = (typeof PptxGenJS !== 'undefined') ? PptxGenJS : window.PptxGenJS;
-            const pptx = new PptxConstructor();
-            pptx.layout = 'LAYOUT_16x9';
-
-            // 최신 편집 상태를 보장하기 위해 필요 시 동적 항목 동기화 실행
-            if (typeof syncDynamicItemsToPptxForms === 'function' && Array.isArray(currentDynamicItems) && currentDynamicItems.length > 0) {
-                try {
-                    syncDynamicItemsToPptxForms(currentDynamicItems);
-                } catch (e) {
-                    console.warn('[syncDynamicItemsToPptxForms warning]:', e);
-                }
-            }
-
-            // 1. 핵심 데이터 추출 및 정리
-            const items = Array.isArray(currentDynamicItems) ? currentDynamicItems : [];
-            const findItemVal = (keys) => {
-                for (const it of items) {
-                    const k = (it.key || '').trim();
-                    const v = (it.value || '').trim();
-                    if (!v) continue;
-                    for (const target of keys) {
-                        if (k.toLowerCase().includes(target.toLowerCase())) return v;
-                    }
-                }
-                return '';
-            };
-
-            // rules 안전 참조 (last15Results 또는 글로벌 ruleDefs)
-            const activeRules = (typeof last15Results !== 'undefined' && Array.isArray(last15Results) && last15Results.length > 0)
-                ? last15Results
-                : ((typeof ruleDefs !== 'undefined' && Array.isArray(ruleDefs) && ruleDefs.length > 0) ? ruleDefs : []);
-
-            const getRuleValById = (id) => {
-                if (activeRules && activeRules.length) {
-                    const found = activeRules.find(r => r && r.id === id);
-                    if (found && found.value && found.value.trim()) return found.value.trim();
-                }
-                const el = document.getElementById(`pptx_input_${id}`);
-                return el && el.value ? el.value.trim() : '';
-            };
-
-            const churchName = findItemVal(['교회명', '교회']) || '두레교회';
-            const worshipDate = detectedWorshipDate || getWorshipDatePrefix() || '2026년 주일예배';
-            const sundayType = currentSundayType || '일반주일';
-
-            // 설교 제목 (id: 11)
-            const sermonTitle = getRuleValById(11) || findItemVal(['설교제목', '설교 제목', '말씀제목', '설교', '제목']) || '주님의 은혜';
-            // 설교자 (id: 1)
-            const preacher = getRuleValById(1) || findItemVal(['설교자', '말씀선포', '설교담당', '말씀']) || '이문장 목사';
-            // 성경 본문 (id: 9)
-            const biblePassage = (document.getElementById('biblePassageInput') ? document.getElementById('biblePassageInput').value.trim() : '')
-                || getRuleValById(9)
-                || findItemVal(['성경본문', '성경 본문', '본문말씀', '본문', '성경']) || '요한복음 16:5-7';
-
-            // 대표기도자 (1부 id: 5, 2부 id: 6)
-            const prayer1 = getRuleValById(5) || findItemVal(['대표기도 [1부]', '대표기도자 [1부]', '1부 기도', '1부대표기도']) || '';
-            const prayer2 = getRuleValById(6) || findItemVal(['대표기도 [2부]', '대표기도자 [2부]', '2부 기도', '2부대표기도']) || '';
-            const generalPrayer = prayer1 && prayer2 ? `1부: ${prayer1}  /  2부: ${prayer2}` : (prayer1 || prayer2 || findItemVal(['대표기도자', '대표기도', '기도자', '기도']) || '성도 일동');
-
-            // 성경봉독자 (1부 id: 7, 2부 id: 8)
-            const reader1 = getRuleValById(7) || findItemVal(['성경봉독 담당자 [1부]', '봉독자 [1부]', '1부 봉독']) || '';
-            const reader2 = getRuleValById(8) || findItemVal(['성경봉독 담당자 [2부]', '봉독자 [2부]', '2부 봉독']) || '';
-            const generalReader = reader1 && reader2 ? `1부: ${reader1}  /  2부: ${reader2}` : (reader1 || reader2 || findItemVal(['성경봉독자', '성경봉독 담당자', '성경봉독', '봉독자']) || '다 함께');
-
-            // 찬송가 (첫번째 id: 2, 두번째 id: 4, 설교후 id: 12, 13)
-            const hymn1 = getRuleValById(2) || findItemVal(['첫번째 찬송', '찬송가 1', '찬송']) || '찬송가 3장';
-            const hymn2 = getRuleValById(4) || getRuleValById(13) || findItemVal(['두번째 찬송', '찬송가 2', '결단찬양']) || '찬송가 191장';
-            const hymn3 = getRuleValById(12) || getRuleValById(13) || findItemVal(['봉헌송', '헌금송', '찬송가 3']) || '찬송가 50장';
-
-            // 찬양대 (id: 10)
-            const choirName = getRuleValById(10) || findItemVal(['찬양대', '두레찬양대', '특별찬양', '성가대']) || '두레찬양대';
-
-            // 성시교독 (id: 3)
-            const gyodokVal = getRuleValById(3) || findItemVal(['성시교독', '교독문', '교독']) || '';
-            const gyodokNum = detectedGyodokNo || (gyodokVal.match(/\d+/) || ['32'])[0];
-
-            // 색상 테마 상수 (다크 네이비 & 고대비 가독성)
-            const COLOR_BG = '0A1128';
-            const COLOR_WHITE = 'F8FAFC';
-            const COLOR_CYAN = '38BDF8';
-            const COLOR_GOLD = 'FBBF24';
-            const COLOR_SLATE = '94A3B8';
-            const COLOR_LIGHT_SLATE = 'CBD5E1';
-            const FONT_MAIN = 'Malgun Gothic';
-
-            // 슬라이드 생성 공통 헬퍼
-            const createBaseSlide = () => {
-                const slide = pptx.addSlide();
-                slide.background = { color: COLOR_BG };
-                return slide;
-            };
-
-            const addSlideHeader = (slide, category) => {
-                slide.addText(`[ ${category} ]`, {
-                    x: '5%',
-                    y: '9%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 26,
-                    bold: true,
-                    color: COLOR_CYAN,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            };
-
-            // -------------------------------------------------------------
-            // 1. 표지 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                // 교회명 상단 레이블
-                slide.addText(churchName, {
-                    x: '5%',
-                    y: '14%',
-                    w: '90%',
-                    h: '10%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 24,
-                    bold: true,
-                    color: COLOR_CYAN,
-                    align: 'center',
-                    valign: 'middle'
-                });
-
-                // 예배 순서 메인 타이틀
-                slide.addText('주 일 예 배', {
-                    x: '5%',
-                    y: '27%',
-                    w: '90%',
-                    h: '28%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 56,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-
-                // 주일 구분 및 일시
-                slide.addText(`[ ${sundayType} ]  ${worshipDate}`, {
-                    x: '5%',
-                    y: '58%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 28,
-                    bold: true,
-                    color: COLOR_GOLD,
-                    align: 'center',
-                    valign: 'middle'
-                });
-
-                // 예배 슬로건 말씀
-                slide.addText('하나님은 영이시니 예배하는 자가 영과 진리로 예배할지니라 (요한복음 4:24)', {
-                    x: '8%',
-                    y: '78%',
-                    w: '84%',
-                    h: '10%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 18,
-                    italic: true,
-                    color: COLOR_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 2. 전체 예배 순서 안내 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '예 배 순 서');
-
-                const orderLines = [
-                    '• 예배의 부름 -------------------- 다 함 께',
-                    '• 신 앙 고 백 (사도신경) ---------- 다 함 께',
-                    `• 찬        송 (${hymn1}) -------- 다 함 께`,
-                    `• 대 표 기 도 -------------------- ${generalPrayer}`,
-                    `• 성 시 교 독 (${gyodokNum}번) ------------ 인도자와 회중`,
-                    `• 성 경 봉 독 (${biblePassage}) --- ${generalReader}`,
-                    `• 찬 양 대 찬 양 ---------------- ${choirName}`,
-                    `• 말        씀 ("${sermonTitle}") -- ${preacher}`,
-                    `• 봉 헌 과 기 도 (${hymn3}) ------ 다 함 께`,
-                    '• 교 회 소 식 -------------------- 인 도 자',
-                    `• 결 단 의 찬 양 (${hymn2}) ------ 다 함 께`,
-                    `• 축        도 -------------------- ${preacher}`
-                ];
-
-                slide.addText(orderLines.join('\n'), {
-                    x: '14%',
-                    y: '22%',
-                    w: '72%',
-                    h: '70%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 21,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'left',
-                    valign: 'middle',
-                    lineSpacingMultiple: 1.2
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 3. 예배의 부름 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '예 배 의 부 름');
-                slide.addText('영과 진리로 하나님을 예배합니다', {
-                    x: '5%',
-                    y: '32%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 44,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('다 함 께', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 32,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 4. 신앙고백 표지 & 사도신경 텍스트 슬라이드 (페이징 분할)
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '신 앙 고 백');
-                slide.addText('사 도 신 경', {
-                    x: '5%',
-                    y: '32%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 50,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('다 함께 사도신경으로 신앙을 고백하시겠습니다', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 28,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // 사도신경 1/2
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '신앙고백 - 사도신경 (1/2)');
-                const creedPart1 = 
-                    '전능하사 천지를 만드신 하나님 아버지를 내가 믿사오며,\n\n' +
-                    '그 외아들 우리 주 예수 그리스도를 믿사오니,\n\n' +
-                    '이는 성령으로 잉태하사 동정녀 마리아에게 나시고,\n\n' +
-                    '본디오 빌라도에게 고난을 받으사 십자가에 못 박혀 죽으시고,';
-                slide.addText(creedPart1, {
-                    x: '8%',
-                    y: '22%',
-                    w: '84%',
-                    h: '68%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 32,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle',
-                    lineSpacingMultiple: 1.2
-                });
-            }
-
-            // 사도신경 2/2
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '신앙고백 - 사도신경 (2/2)');
-                const creedPart2 = 
-                    '장사한 지 사흘 만에 죽은 자 가운데서 다시 살아나시며,\n\n' +
-                    '하늘에 오르사 전능하신 하나님 아버지 우편에 앉아 계시다가,\n\n' +
-                    '저리로서 산 자와 죽은 자를 심판하러 오시리라.\n\n' +
-                    '성령을 믿사오며 거룩한 공회와 성도가 서로 교통하는 것과,\n\n' +
-                    '죄를 사하여 주시는 것과 몸이 다시 사는 것과 영원히 사는 것을 믿사옵나이다. 아멘.';
-                slide.addText(creedPart2, {
-                    x: '8%',
-                    y: '20%',
-                    w: '84%',
-                    h: '72%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 30,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle',
-                    lineSpacingMultiple: 1.15
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 5. 첫번째 찬송 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '찬 송');
-                slide.addText(hymn1, {
-                    x: '5%',
-                    y: '32%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 50,
-                    bold: true,
-                    color: COLOR_GOLD,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('다 함께 찬송하시겠습니다', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 30,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 6. 대표 기도 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '대 표 기 도');
-                slide.addText(generalPrayer, {
-                    x: '6%',
-                    y: '32%',
-                    w: '88%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 44,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('마음을 모아 함께 기도드리겠습니다', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 30,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 7. 성시 교독 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '성 시 교 독');
-                slide.addText(`교독문 ${gyodokNum}번`, {
-                    x: '5%',
-                    y: '32%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 50,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('인도자와 회중이 교독합니다', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 30,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 8. 성경 봉독 표지 및 본문 페이징 슬라이드 (3~4줄씩 자동 분할)
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '성 경 봉 독');
-                slide.addText(biblePassage, {
-                    x: '5%',
-                    y: '30%',
-                    w: '90%',
-                    h: '28%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 48,
-                    bold: true,
-                    color: COLOR_CYAN,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText(`봉독: ${generalReader}`, {
-                    x: '5%',
-                    y: '64%',
-                    w: '90%',
-                    h: '14%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 32,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // 성경 구절 스크래핑/파싱 및 3~4줄 단위 자동 Pagination 슬라이드 생성
-            const parsedRefs = parseBibleRefInput(biblePassage);
-            if (parsedRefs && parsedRefs.length > 0) {
-                for (const r of parsedRefs) {
-                    let verseText = '';
-                    try {
-                        const res = await getBibleVerseText(r.bookObj, r.bookShort, r.chapter, r.verse);
-                        if (res && res.content) verseText = res.content.trim();
-                    } catch (e) {
-                        console.warn('[Bible Verse fetch for PPTX warning]:', e);
-                    }
-
-                    if (!verseText) {
-                        verseText = `${r.bookFull} ${r.chapter}${r.bookShort === '시' ? '편' : '장'} ${r.verse}절 말씀`;
-                    }
-
-                    const chapterSuffix = r.bookShort === '시' ? '편' : '장';
-                    const refLabel = `${r.bookFull} ${r.chapter}${chapterSuffix} ${r.verse}절`;
-
-                    // 1장에 3~4줄 내외(한글 75~90자)로 스마트 분할
-                    const chunks = splitTextToWorshipSlides(verseText, 85);
-                    chunks.forEach((chunk, cIdx) => {
-                        const slide = createBaseSlide();
-                        const pageLabel = chunks.length > 1 ? `성경봉독 - ${refLabel} (${cIdx + 1}/${chunks.length})` : `성경봉독 - ${refLabel}`;
-                        addSlideHeader(slide, pageLabel);
-
-                        slide.addText(chunk, {
-                            x: '8%',
-                            y: '24%',
-                            w: '84%',
-                            h: '64%',
-                            fontFace: FONT_MAIN,
-                            fontSize: 36,
-                            bold: true,
-                            color: COLOR_WHITE,
-                            align: 'left',
-                            valign: 'middle',
-                            lineSpacingMultiple: 1.35
-                        });
-                    });
-                }
-            } else {
-                // 파싱되지 않은 경우 단일 본문 슬라이드
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '성 경 봉 독');
-                slide.addText(biblePassage, {
-                    x: '8%',
-                    y: '26%',
-                    w: '84%',
-                    h: '60%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 38,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 9. 찬양대 찬양 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '찬 양 대 찬 양');
-                slide.addText(choirName, {
-                    x: '5%',
-                    y: '32%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 48,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('주님 홀로 영광 받으소서', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 30,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 10. 말씀 (설교) 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '말 씀');
-                slide.addText(`"${sermonTitle}"`, {
-                    x: '5%',
-                    y: '26%',
-                    w: '90%',
-                    h: '34%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 46,
-                    bold: true,
-                    color: COLOR_GOLD,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText(`말씀: ${preacher}`, {
-                    x: '5%',
-                    y: '62%',
-                    w: '90%',
-                    h: '14%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 34,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText(`본문: ${biblePassage}`, {
-                    x: '5%',
-                    y: '78%',
-                    w: '90%',
-                    h: '10%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 22,
-                    color: COLOR_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 11. 봉헌 및 봉헌기도 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '봉 헌 과 기 도');
-                slide.addText(hymn3, {
-                    x: '5%',
-                    y: '32%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 48,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('정성을 다해 주님께 예물을 드립니다', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 30,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 12. 교회 소식 / 광고 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '교 회 소 식');
-
-                // 주보 내 주요 공지사항 추출 (없을 경우 기본 따뜻한 교회 환영 안내)
-                const notices = [];
-                items.forEach(it => {
-                    const k = (it.key || '').trim();
-                    const v = (it.value || '').trim();
-                    if (!v) return;
-                    if (/(광고|알림|교회소식|소식|모임|새가족|공지)/i.test(k)) {
-                        notices.push(`${k}: ${v}`);
-                    }
-                });
-
-                let noticeText = '';
-                if (notices.length > 0) {
-                    noticeText = notices.slice(0, 4).map((n, i) => `${i + 1}. ${n}`).join('\n\n');
-                } else {
-                    noticeText = 
-                        '1. 오늘 주일 예배에 참석하신 모든 성도님들을 환영하고 축복합니다.\n\n' +
-                        '2. 예배 후 각 전도회 및 부서별 교제와 나눔이 있습니다.\n\n' +
-                        '3. 한 주간도 주님의 은혜 안에서 말씀과 기도로 승리하시기 바랍니다.';
-                }
-
-                slide.addText(noticeText, {
-                    x: '10%',
-                    y: '24%',
-                    w: '80%',
-                    h: '66%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 28,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'left',
-                    valign: 'middle',
-                    lineSpacingMultiple: 1.25
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 13. 결단의 찬양 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '결 단 의 찬 양');
-                slide.addText(hymn2, {
-                    x: '5%',
-                    y: '32%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 50,
-                    bold: true,
-                    color: COLOR_GOLD,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText('다 함께 자리에서 일어나 찬송하시겠습니다', {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 30,
-                    bold: true,
-                    color: COLOR_LIGHT_SLATE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 14. 축도 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                addSlideHeader(slide, '축 도');
-                slide.addText('축 도', {
-                    x: '5%',
-                    y: '30%',
-                    w: '90%',
-                    h: '28%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 54,
-                    bold: true,
-                    color: COLOR_CYAN,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText(`${preacher} 목사`, {
-                    x: '5%',
-                    y: '66%',
-                    w: '90%',
-                    h: '14%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 36,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // -------------------------------------------------------------
-            // 15. 폐회 슬라이드
-            // -------------------------------------------------------------
-            {
-                const slide = createBaseSlide();
-                slide.addText('은혜로운 한 주 되시기를 축복합니다', {
-                    x: '5%',
-                    y: '35%',
-                    w: '90%',
-                    h: '30%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 44,
-                    bold: true,
-                    color: COLOR_WHITE,
-                    align: 'center',
-                    valign: 'middle'
-                });
-                slide.addText(churchName, {
-                    x: '5%',
-                    y: '68%',
-                    w: '90%',
-                    h: '12%',
-                    fontFace: FONT_MAIN,
-                    fontSize: 26,
-                    bold: true,
-                    color: COLOR_CYAN,
-                    align: 'center',
-                    valign: 'middle'
-                });
-            }
-
-            // 파일 저장 및 즉시 브라우저 다운로드
-            const datePrefix = getWorshipDatePrefix() || '주일예배';
-            const fileName = `${datePrefix}_본당_예배순서_완성형.pptx`;
-            await pptx.writeFile({ fileName });
-        }
-
-        // 텍스트를 슬라이드 1장(3~4줄, maxChars) 단위로 자연스럽게 분할하는 헬퍼
-        function splitTextToWorshipSlides(text, maxChars = 85) {
-            if (!text) return [];
-            text = text.trim();
-            if (text.length <= maxChars) return [text];
-
-            const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
-            const slides = [];
-            let cur = '';
-
-            for (const s of sentences) {
-                const item = s.trim();
-                if (!item) continue;
-                if (!cur) {
-                    cur = item;
-                } else if ((cur + ' ' + item).length <= maxChars) {
-                    cur += ' ' + item;
-                } else {
-                    slides.push(cur);
-                    cur = item;
-                }
-            }
-            if (cur) slides.push(cur);
-
-            const result = [];
-            for (const sl of slides) {
-                if (sl.length <= maxChars + 20) {
-                    result.push(sl);
-                } else {
-                    const words = sl.split(' ');
-                    let sub = '';
-                    for (const w of words) {
-                        if (!sub) {
-                            sub = w;
-                        } else if ((sub + ' ' + w).length <= maxChars) {
-                            sub += ' ' + w;
-                        } else {
-                            result.push(sub);
-                            sub = w;
-                        }
-                    }
-                    if (sub) result.push(sub);
-                }
-            }
-            return result;
-        }
 
         function escapeHtml(text) {
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
