@@ -4,7 +4,7 @@
  * Query Param: hymnNo=003 (or 3, 050, 191 etc.)
  * 
  * Environment Variables (Set in Cloudflare Pages Dashboard or .dev.vars):
- * - SYNOLOGY_NAS_URL (Default: http://doore2.synology.me:5000)
+ * - SYNOLOGY_NAS_URL (Default: https://doore2.synology.me:35001)
  * - SYNOLOGY_USERNAME
  * - SYNOLOGY_PASSWORD
  */
@@ -41,7 +41,7 @@ export async function onRequestGet(context) {
     const hymnNo = numOnly.padStart(3, '0');
 
     // 환경 변수 읽기
-    const baseUrl = (env.SYNOLOGY_NAS_URL || 'http://doore2.synology.me:5000').replace(/\/+$/, '');
+    const baseUrl = (env.SYNOLOGY_NAS_URL || 'https://doore2.synology.me:35001').replace(/\/+$/, '');
     const username = env.SYNOLOGY_USERNAME;
     const password = env.SYNOLOGY_PASSWORD;
 

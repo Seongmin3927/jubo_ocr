@@ -31,6 +31,8 @@ jubo_ocr/
    ```env
    CLOVA_OCR_INVOKE_URL=https://xxxxxxxx.apigw.ntruss.com/custom/v1/XXXXX/XXXXX/general
    CLOVA_OCR_SECRET_KEY=YourClovaOcrSecretKeyHere
+   SYNOLOGY_USERNAME=YourSynologyUsername
+   SYNOLOGY_PASSWORD=YourSynologyPassword
    ```
 2. 로컬 서버 실행:
    ```bash
@@ -48,9 +50,12 @@ jubo_ocr/
 
 2. **Cloudflare Pages 환경변수 설정**:
    - Cloudflare Pages 프로젝트 대시보드 → **Settings** → **Environment variables** 접속
-   - 다음 2가지 변수를 추가합니다:
+   - 환경변수를 설정합니다:
      - **`CLOVA_OCR_INVOKE_URL`**: 네이버 클로바 OCR Invoke URL
      - **`CLOVA_OCR_SECRET_KEY`**: 네이버 클로바 OCR Secret Key
+     - **SYNOLOGY_USERNAME**: 시놀로지 NAS 방송팀 계정 아이디 (찬송가/교독문 다운로드용)
+     - **SYNOLOGY_PASSWORD**: 시놀로지 NAS 방송팀 계정 비밀번호
+     - **SYNOLOGY_NAS_URL** *(선택)*: 방송팀 자료실 주소 (기본값: https://doore2.synology.me:35001)
 
 ---
 

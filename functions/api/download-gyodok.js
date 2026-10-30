@@ -6,7 +6,7 @@
  *   - zipOnly: "true" (optional: ZIP 파일 원본 ArrayBuffer 요청 시)
  * 
  * Environment Variables (Set in Cloudflare Pages Dashboard or .dev.vars):
- * - SYNOLOGY_NAS_URL (Default: http://doore2.synology.me:5000)
+ * - SYNOLOGY_NAS_URL (Default: https://doore2.synology.me:35001)
  * - SYNOLOGY_USERNAME
  * - SYNOLOGY_PASSWORD
  */
@@ -74,7 +74,7 @@ export async function onRequestGet(context) {
     }
 
     // 환경 변수 읽기
-    const baseUrl = (env.SYNOLOGY_NAS_URL || 'http://doore2.synology.me:5000').replace(/\/+$/, '');
+    const baseUrl = (env.SYNOLOGY_NAS_URL || 'https://doore2.synology.me:35001').replace(/\/+$/, '');
     const username = env.SYNOLOGY_USERNAME;
     const password = env.SYNOLOGY_PASSWORD;
 
