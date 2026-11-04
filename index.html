@@ -2414,15 +2414,21 @@
             }, 1350);
         }
 
-        // 페이지 로딩 후 2.5초간 선명하게 유지 ➔ 서서히 안개처럼 사라지는 페이드아웃 (1.3s 동안 부드럽게 용해)
+        // 스플래시 화면 클릭 시 즉시 닫기
+        const splashEl = document.getElementById('introSplashScreen');
+        if (splashEl) {
+            splashEl.addEventListener('click', dismissSplashScreen);
+        }
+
+        // 페이지 로딩 후 2.0초간 유지 ➔ 서서히 안개처럼 사라지는 페이드아웃
         if (document.readyState === 'complete') {
-            setTimeout(dismissSplashScreen, 2500);
+            setTimeout(dismissSplashScreen, 2000);
         } else {
             window.addEventListener('load', () => {
-                setTimeout(dismissSplashScreen, 2500);
+                setTimeout(dismissSplashScreen, 2000);
             });
-            // 최대 3.5초 안전 타이머 (대용량 리소스 지연 방지)
-            setTimeout(dismissSplashScreen, 3500);
+            // 최대 3.0초 안전 타이머 (대용량 리소스 지연 방지)
+            setTimeout(dismissSplashScreen, 3000);
         }
 
         // ==============================================
@@ -6148,7 +6154,7 @@
             if (contentType.includes('presentation') || contentType.includes('powerpoint') || disposition.includes('.ppt')) {
                 const ext = (contentType.includes('presentation') || disposition.includes('.pptx')) ? 'pptx' : 'ppt';
                 const pptxBlob = new Blob([zipBuffer], { type: contentType || 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
-                return { blob: pptxBlob, fileName: 교독문_번. };
+                return { blob: pptxBlob, fileName: `교독문_${n}번.${ext}` };
             }
 
             // 2. JSZip으로 ZIP 파일 압축 해제 및 해당 번호 PPTX 탐색
