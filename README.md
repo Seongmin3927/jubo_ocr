@@ -48,14 +48,25 @@ jubo_ocr/
    - Cloudflare Pages 대시보드에서 `jubo_ocr` (https://github.com/Seongmin3927/jubo_ocr.git) 저장소를 선택하여 배포합니다.
    - Build output directory: `/` (루트)
 
-2. **Cloudflare Pages 환경변수 설정**:
+2. **Cloudflare Pages R2 스토리지 바인딩 (찬송가 & 교독문 초고속 다운로드)**:
+   - Cloudflare Pages 프로젝트 대시보드 → **Settings** → **Functions** → **R2 bucket bindings** 섹션 접속
+   - **[Add binding]** 클릭 후 아래 2개의 버킷을 연결합니다:
+     1. 찬송가 버킷:
+        - Variable name: **`R2_HYMNS`**
+        - R2 bucket: **`dooreteam-resourse`**
+     2. 교독문 버킷:
+        - Variable name: **`R2_GYODOK`**
+        - R2 bucket: **`doore-resourse-kyodoke`**
+   - *(대안)* 만약 R2의 `r2.dev` 공용 URL을 사용하는 경우 **Settings → Environment variables**에 아래 변수를 추가할 수도 있습니다:
+     - `R2_HYMNS_URL`: 찬송가 버킷 공용 r2.dev URL
+     - `R2_GYODOK_URL`: 교독문 버킷 공용 r2.dev URL
+
+3. **Cloudflare Pages 환경변수 설정**:
    - Cloudflare Pages 프로젝트 대시보드 → **Settings** → **Environment variables** 접속
    - 환경변수를 설정합니다:
      - **`CLOVA_OCR_INVOKE_URL`**: 네이버 클로바 OCR Invoke URL
      - **`CLOVA_OCR_SECRET_KEY`**: 네이버 클로바 OCR Secret Key
-     - **SYNOLOGY_USERNAME**: 시놀로지 NAS 방송팀 계정 아이디 (찬송가/교독문 다운로드용)
-     - **SYNOLOGY_PASSWORD**: 시놀로지 NAS 방송팀 계정 비밀번호
-     - **SYNOLOGY_NAS_URL** *(선택)*: 방송팀 자료실 주소 (기본값: https://doore2.synology.me:35001)
+     - *(선택)* **`SYNOLOGY_USERNAME`**, **`SYNOLOGY_PASSWORD`**: R2에 파일이 없을 때 대비용 시놀로지 NAS 폴백 계정
 
 ---
 

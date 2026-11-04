@@ -6141,6 +6141,15 @@
             }
 
             const zipBuffer = await response.arrayBuffer();
+            const contentType = response.headers.get('content-type') || '';
+            const disposition = response.headers.get('content-disposition') || '';
+
+            // 만약 서버(R2 등)에서 이미 단일 PPT/PPTX 파일로 바로 내려온 경우 (ZIP 압축 해제 생략)
+            if (contentType.includes('presentation') || contentType.includes('powerpoint') || disposition.includes('.ppt')) {
+                const ext = (contentType.includes('presentation') || disposition.includes('.pptx')) ? 'pptx' : 'ppt';
+                const pptxBlob = new Blob([zipBuffer], { type: contentType || 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+                return { blob: pptxBlob, fileName: 교독문_번. };
+            }
 
             // 2. JSZip으로 ZIP 파일 압축 해제 및 해당 번호 PPTX 탐색
             if (typeof JSZip === 'undefined') {

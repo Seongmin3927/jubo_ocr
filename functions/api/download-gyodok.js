@@ -1,16 +1,15 @@
 /**
- * Cloudflare Pages Function - Synology File Station Gyodok (성시교독) ZIP/PPTX Proxy
+ * Cloudflare Pages Function - Gyodok (성시교독) ZIP/PPTX Proxy
  * Path: /api/download-gyodok (HTTP GET)
  * Query Param:
  *   - no: 24 (or "24번", "교독문 24번")
- *   - zipOnly: "true" (optional: ZIP 파일 원본 ArrayBuffer 요청 시)
  * 
- * Environment Variables (Set in Cloudflare Pages Dashboard or .dev.vars):
- * - SYNOLOGY_NAS_URL (Default: https://doore2.synology.me:35001)
- * - SYNOLOGY_USERNAME
- * - SYNOLOGY_PASSWORD
+ * Storage Sources:
+ * 1. Cloudflare R2 Bucket (doore-resourse-kyodoke) - 우선 순위
+ * 2. Synology File Station NAS (Fallback)
  */
 
+import { getGyodokFromR2 } from './_r2.js';
 import { downloadSynologyFile, SynologyAuthError } from './_synology.js';
 
 // 교독문 번호별 대상 분할 ZIP 파일명 매핑 규칙
@@ -73,26 +72,60 @@ export async function onRequestGet(context) {
       );
     }
 
-    // 대상 ZIP 파일 NAS 저장 경로: /예배 및 방송자료/6-교독문 PPT/{zipFileName}
-    const nasFilePath = `/예배 및 방송자료/6-교독문 PPT/${zipFileName}`;
+    // ========================================================
+    // 1. Cloudflare R2 버킷(doore-resourse-kyodoke)에서 우선 다운로드
+    // ========================================================
+    try {
+      const r2Result = await getGyodokFromR2(env, gyodokNo, zipFileName);
+      if (r2Result && r2Result.buffer) {
+        return new Response(r2Result.buffer, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': r2Result.contentType,
+            'Content-Disposition': `attachment; filename="${r2Result.fileName}"; filename*=UTF-8''${encodeURIComponent(r2Result.fileName)}`,
+            'X-Target-Gyodok-No': String(gyodokNo),
+            'X-Zip-File-Name': encodeURIComponent(r2Result.fileName),
+            'Cache-Control': 'public, max-age=86400',
+            'X-Storage-Source': 'Cloudflare-R2',
+          },
+        });
+      }
+    } catch (r2Err) {
+      console.warn('[R2 Gyodok Download Warning / Fallback to NAS]:', r2Err.message);
+    }
 
-    // 공통 시놀로지 클라이언트를 통해 다운로드 (세션 재사용 및 락아웃 보호)
-    const zipBuffer = await downloadSynologyFile(env, nasFilePath);
+    // ========================================================
+    // 2. R2 미설정 또는 파일 부재 시 시놀로지 NAS 폴백 (기존 호환성 유지)
+    // ========================================================
+    if (env.SYNOLOGY_USERNAME && env.SYNOLOGY_PASSWORD) {
+      const nasFilePath = `/예배 및 방송자료/6-교독문 PPT/${zipFileName}`;
+      const zipBuffer = await downloadSynologyFile(env, nasFilePath);
 
-    return new Response(zipBuffer, {
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${zipFileName}"; filename*=UTF-8''${encodeURIComponent(zipFileName)}`,
-        'X-Target-Gyodok-No': String(gyodokNo),
-        'X-Zip-File-Name': encodeURIComponent(zipFileName),
-        'Cache-Control': 'no-cache',
-      },
-    });
+      return new Response(zipBuffer, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/zip',
+          'Content-Disposition': `attachment; filename="${zipFileName}"; filename*=UTF-8''${encodeURIComponent(zipFileName)}`,
+          'X-Target-Gyodok-No': String(gyodokNo),
+          'X-Zip-File-Name': encodeURIComponent(zipFileName),
+          'Cache-Control': 'no-cache',
+          'X-Storage-Source': 'Synology-NAS',
+        },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `교독문 ${gyodokNo}번 파일을 R2 스토리지(doore-resourse-kyodoke)에서 찾을 수 없습니다. 버킷 업로드 상태를 확인해주세요.`
+      }),
+      { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+    );
 
   } catch (error) {
-    console.error('[Synology Gyodok Download Proxy Exception]:', error);
+    console.error('[Gyodok Download Exception]:', error);
 
     const isAuth = error.isAuthFailure || error instanceof SynologyAuthError;
     const status = isAuth ? 401 : (error.message.includes('존재하지 않습니다') ? 404 : 500);
