@@ -9,6 +9,8 @@
  * - SYNOLOGY_PASSWORD
  */
 
+import { downloadSynologyFile, SynologyAuthError } from '../_synology.js';
+
 export async function onRequestGet(context) {
   const { request, env } = context;
 
@@ -40,98 +42,11 @@ export async function onRequestGet(context) {
     }
     const hymnNo = numOnly.padStart(3, '0');
 
-    // 환경 변수 읽기
-    const baseUrl = (env.SYNOLOGY_NAS_URL || 'https://doore2.synology.me:35001').replace(/\/+$/, '');
-    const username = env.SYNOLOGY_USERNAME;
-    const password = env.SYNOLOGY_PASSWORD;
-
-    if (!username || !password) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: '시놀로지 NAS 인증 환경변수(SYNOLOGY_USERNAME, SYNOLOGY_PASSWORD)가 설정되지 않았습니다. Cloudflare Pages 환경변수를 확인해주세요.',
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
-    // Step A: 시놀로지 FileStation API 로그인 (sid 획득)
-    const loginUrl = `${baseUrl}/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=login&account=${encodeURIComponent(username)}&passwd=${encodeURIComponent(password)}&session=FileStation&format=sid`;
-    
-    let loginRes;
-    try {
-      loginRes = await fetch(loginUrl);
-    } catch (netErr) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `시놀로지 NAS 서버(${baseUrl}) 연결 실패: ${netErr.message}`,
-        }),
-        { status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
-    if (!loginRes.ok) {
-      const errText = await loginRes.text();
-      return new Response(
-        JSON.stringify({ success: false, error: `시놀로지 NAS 로그인 실패 (HTTP ${loginRes.status}): ${errText}` }),
-        { status: loginRes.status, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
-    const loginData = await loginRes.json();
-    if (!loginData.success || !loginData.data || !loginData.data.sid) {
-      const errCode = loginData.error ? loginData.error.code : '인증 실패';
-      return new Response(
-        JSON.stringify({ success: false, error: `시놀로지 NAS 로그인 인증 에러 (오류 코드: ${errCode})` }),
-        { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
-    const sid = loginData.data.sid;
-
-    // Step B: 파일 다운로드 요청
     // NAS 저장 경로: /예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9/새찬송가(3자리장수)장_normal_White.ppt
     const nasFilePath = `/예배 및 방송자료/5-찬송가 PPT/새찬송가 배경 X - 16.9/새찬송가${hymnNo}장_normal_White.ppt`;
-    const downloadUrl = `${baseUrl}/webapi/entry.cgi?api=SYNO.FileStation.Download&version=2&method=download&path=${encodeURIComponent(nasFilePath)}&mode=download&_sid=${encodeURIComponent(sid)}`;
 
-    let downloadRes;
-    try {
-      downloadRes = await fetch(downloadUrl);
-    } catch (fetchErr) {
-      await logoutSynology(baseUrl, sid);
-      return new Response(
-        JSON.stringify({ success: false, error: `시놀로지 파일 다운로드 중 네트워크 에러: ${fetchErr.message}` }),
-        { status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
-    const contentType = downloadRes.headers.get('content-type') || '';
-    if (!downloadRes.ok || contentType.includes('application/json') || contentType.includes('text/html')) {
-      let errorDetail = `HTTP ${downloadRes.status}`;
-      try {
-        const json = await downloadRes.json();
-        if (json.error) {
-          errorDetail += ` (NAS 에러코드: ${json.error.code})`;
-        }
-      } catch (e) {}
-
-      await logoutSynology(baseUrl, sid);
-
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `찬송가 ${parseInt(hymnNo, 10)}장(새찬송가${hymnNo}장_normal_White.ppt) 파일이 시놀로지 NAS에 존재하지 않거나 다운로드할 수 없습니다. [${errorDetail}]`
-        }),
-        { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
-    }
-
-    // Step C: PPT 바이너리 데이터 수집
-    const pptBuffer = await downloadRes.arrayBuffer();
-
-    // Step D: 시놀로지 세션 로그아웃 (비동기 완료)
-    logoutSynology(baseUrl, sid).catch(() => {});
+    // 공통 시놀로지 클라이언트를 통해 다운로드 (세션 재사용 및 락아웃 보호)
+    const pptBuffer = await downloadSynologyFile(env, nasFilePath);
 
     const pptFileName = `새찬송가${hymnNo}장_normal_White.ppt`;
 
@@ -146,10 +61,18 @@ export async function onRequestGet(context) {
     });
 
   } catch (error) {
-    console.error('[Synology Download Proxy Exception]:', error);
+    console.error('[Synology Hymn Download Proxy Exception]:', error);
+
+    const isAuth = error.isAuthFailure || error instanceof SynologyAuthError;
+    const status = isAuth ? 401 : (error.message.includes('존재하지 않습니다') ? 404 : 500);
+
     return new Response(
-      JSON.stringify({ success: false, error: `서버 예외 발생: ${error.message}` }),
-      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      JSON.stringify({
+        success: false,
+        isAuthFailure: !!isAuth,
+        error: error.message
+      }),
+      { status, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
 }
@@ -163,14 +86,4 @@ export async function onRequestOptions() {
       'Access-Control-Allow-Headers': 'Content-Type',
     },
   });
-}
-
-async function logoutSynology(baseUrl, sid) {
-  if (!baseUrl || !sid) return;
-  try {
-    const logoutUrl = `${baseUrl}/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=logout&session=FileStation&_sid=${encodeURIComponent(sid)}`;
-    await fetch(logoutUrl);
-  } catch (e) {
-    console.warn('[Synology Logout Warning]:', e.message);
-  }
 }
