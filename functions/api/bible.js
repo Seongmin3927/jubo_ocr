@@ -84,12 +84,7 @@ const BIBLE_VERSIONS = {
   'greek': '헬라어(신약)'
 };
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Content-Type': 'application/json; charset=utf-8'
-};
+import { checkRateLimit, getCorsHeaders, handleCorsPreflight } from './_security.js';
 
 // 자연어 검색어 파싱
 function parseQuery(query) {
@@ -271,11 +266,18 @@ export async function onRequest(context) {
 
   // Handle CORS preflight
   if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: CORS_HEADERS
-    });
+    return handleCorsPreflight(request);
   }
+
+  // 1. IP 기반 요청 빈도 제한 (Rate Limiting) - 분당 최대 30회
+  const rateLimitRes = checkRateLimit(request, { limit: 30, windowMs: 60 * 1000, apiName: 'bible' });
+  if (rateLimitRes) return rateLimitRes;
+
+  // 2. Strict CORS 헤더 생성
+  const corsHeaders = {
+    ...getCorsHeaders(request),
+    'Content-Type': 'application/json; charset=utf-8'
+  };
 
   try {
     const url = new URL(request.url);
@@ -312,7 +314,7 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({
           success: false,
           error: `입력하신 성경구절(${queryParam})을 찾을 수 없습니다. 예: '창세기 1:1', '요한복음 3:16', '시편 23편'`
-        }), { status: 400, headers: CORS_HEADERS });
+        }), { status: 400, headers: corsHeaders });
       }
       book = parsed.book;
       chap = parsed.chap;
@@ -324,7 +326,7 @@ export async function onRequest(context) {
         return new Response(JSON.stringify({
           success: false,
           error: `성경 코드(${volParam})가 올바르지 않습니다.`
-        }), { status: 400, headers: CORS_HEADERS });
+        }), { status: 400, headers: corsHeaders });
       }
       chap = chapParam ? parseInt(chapParam, 10) : 1;
       startVerse = startParam ? parseInt(startParam, 10) : null;
@@ -333,7 +335,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: "성경 구절 'query' 또는 'vol', 'chap' 파라미터를 입력해주세요. 예: /api/bible?query=요한복음 3:16"
-      }), { status: 400, headers: CORS_HEADERS });
+      }), { status: 400, headers: corsHeaders });
     }
 
     // 장 유효성 검증
@@ -341,7 +343,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: `${book.name}은(는) 1장부터 ${book.chapters}장까지 있습니다. (입력값: ${chap}장)`
-      }), { status: 400, headers: CORS_HEADERS });
+      }), { status: 400, headers: corsHeaders });
     }
 
     const versionKey = BIBLE_VERSIONS[verParam] ? verParam : 'gae';
@@ -373,7 +375,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: `갓피아 서버 응답 오류 (HTTP ${godpiaRes.status})`
-      }), { status: 502, headers: CORS_HEADERS });
+      }), { status: 502, headers: corsHeaders });
     }
 
     const html = await godpiaRes.text();
@@ -383,7 +385,7 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: '해당 장의 성경 본문을 불러오지 못했습니다.'
-      }), { status: 404, headers: CORS_HEADERS });
+      }), { status: 404, headers: corsHeaders });
     }
 
     // 구절 범위 필터링
@@ -426,12 +428,12 @@ export async function onRequest(context) {
         totalVersesInChapter: allVerses.length,
         verses: filteredVerses
       }
-    }), { status: 200, headers: CORS_HEADERS });
+    }), { status: 200, headers: corsHeaders });
 
   } catch (err) {
     return new Response(JSON.stringify({
       success: false,
       error: `서버 내부 오류: ${err.message}`
-    }), { status: 500, headers: CORS_HEADERS });
+    }), { status: 500, headers: corsHeaders });
   }
 }

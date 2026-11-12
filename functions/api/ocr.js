@@ -6,15 +6,17 @@
  * Function reads env: CLOVA_OCR_INVOKE_URL, CLOVA_OCR_SECRET_KEY
  */
 
+import { checkRateLimit, getCorsHeaders, handleCorsPreflight } from './_security.js';
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  // CORS Headers
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
+  // 1. IP 기반 요청 빈도 제한 (Rate Limiting) - 분당 최대 10회
+  const rateLimitRes = checkRateLimit(request, { limit: 10, windowMs: 60 * 1000, apiName: 'ocr' });
+  if (rateLimitRes) return rateLimitRes;
+
+  // 2. Strict CORS 헤더 생성
+  const corsHeaders = getCorsHeaders(request);
 
   try {
     const invokeUrl = env.CLOVA_OCR_INVOKE_URL;
@@ -113,13 +115,6 @@ export async function onRequestPost(context) {
   }
 }
 
-export async function onRequestOptions() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export async function onRequestOptions(context) {
+  return handleCorsPreflight(context.request);
 }

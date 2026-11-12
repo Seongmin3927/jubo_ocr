@@ -84,18 +84,18 @@ const BIBLE_VERSIONS = [
   { code: 'greek', name: '헬라어(신약)', isDefault: false }
 ];
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Content-Type': 'application/json; charset=utf-8',
-  'Cache-Control': 'public, max-age=86400'
-};
+import { getCorsHeaders, handleCorsPreflight } from './_security.js';
 
 export async function onRequest(context) {
   if (context.request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    return handleCorsPreflight(context.request);
   }
+
+  const corsHeaders = {
+    ...getCorsHeaders(context.request),
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'public, max-age=86400'
+  };
 
   return new Response(JSON.stringify({
     success: true,
@@ -103,6 +103,6 @@ export async function onRequest(context) {
     versions: BIBLE_VERSIONS
   }), {
     status: 200,
-    headers: CORS_HEADERS
+    headers: corsHeaders
   });
 }

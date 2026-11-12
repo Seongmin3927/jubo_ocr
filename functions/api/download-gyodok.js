@@ -11,6 +11,7 @@
 
 import { getGyodokFromR2 } from './_r2.js';
 import { downloadSynologyFile, SynologyAuthError } from './_synology.js';
+import { checkRateLimit, getCorsHeaders, handleCorsPreflight } from './_security.js';
 
 // 교독문 번호별 대상 분할 ZIP 파일명 매핑 규칙
 export function getGyodokZipFileName(gyodokNo) {
@@ -37,11 +38,12 @@ export function getGyodokZipFileName(gyodokNo) {
 export async function onRequestGet(context) {
   const { request, env } = context;
 
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
+  // 1. IP 기반 요청 빈도 제한 (Rate Limiting) - 분당 최대 20회
+  const rateLimitRes = checkRateLimit(request, { limit: 20, windowMs: 60 * 1000, apiName: 'download-gyodok' });
+  if (rateLimitRes) return rateLimitRes;
+
+  // 2. Strict CORS 헤더 생성
+  const corsHeaders = getCorsHeaders(request);
 
   try {
     const url = new URL(request.url);
@@ -141,13 +143,6 @@ export async function onRequestGet(context) {
   }
 }
 
-export async function onRequestOptions() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export async function onRequestOptions(context) {
+  return handleCorsPreflight(context.request);
 }

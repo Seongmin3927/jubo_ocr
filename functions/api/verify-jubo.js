@@ -16,14 +16,17 @@
 // =========================================================================
 export const IS_JUBO_VERIFICATION_ENABLED = false;
 
+import { checkRateLimit, getCorsHeaders, handleCorsPreflight } from './_security.js';
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
+  // 1. IP 기반 요청 빈도 제한 (Rate Limiting) - 분당 최대 5회
+  const rateLimitRes = checkRateLimit(request, { limit: 5, windowMs: 60 * 1000, apiName: 'verify-jubo' });
+  if (rateLimitRes) return rateLimitRes;
+
+  // 2. Strict CORS 헤더 생성
+  const corsHeaders = getCorsHeaders(request);
 
   // 주보 검증 시스템이 비활성화(OFF)된 경우 검증을 즉시 통과 처리
   if (!IS_JUBO_VERIFICATION_ENABLED) {
@@ -282,13 +285,6 @@ async function callGeminiVerify(base64Data, mimeType, apiKey, env, corsHeaders) 
   );
 }
 
-export async function onRequestOptions() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+export async function onRequestOptions(context) {
+  return handleCorsPreflight(context.request);
 }
